@@ -2155,23 +2155,45 @@ function populateStrSelect(){
 }
 
 // ── Scoring engine ────────────────────────────────
-// Absolute score vs benchmark — used for composite RAS badge
+// Weighted RAS score out of 10
+// MPH + Vertical Jump         = 40% combined (20% each)
+// HF CMJ + Barbell CMJ + Approach Jump = 30% combined (~10% each)
+// Front Squat + BB RDL + BB Split Squat = 30% combined (~10% each)
+const RAS_WEIGHTS = {
+  mph:          0.20,
+  vertJump:     0.20,
+  hfCMJ:        0.10,
+  barbellCMJ:   0.10,
+  approachJump: 0.10,
+  frontSquat:   0.10,
+  rdl:          0.10,
+  splitSquat:   0.10,
+};
+
 function scoreEntry(entry){
-  let total=0, count=0;
-  const scores={};
+  const scores = {};
+  let weightedSum = 0;
+  let weightUsed  = 0;
+
   STR_METRICS.forEach(m=>{
     const val = entry[m.key];
     if(val==null){ scores[m.key]=null; return; }
-    const raw = Math.min((val/m.bench)*100, 100);
-    scores[m.key] = Math.round(raw);
-    total+=raw; count++;
+    // 0–100 vs benchmark, capped at 100
+    const pct = Math.min((val / m.bench) * 100, 100);
+    scores[m.key] = Math.round(pct);
+    const w = RAS_WEIGHTS[m.key] || 0;
+    weightedSum += pct * w;
+    weightUsed  += w;
   });
-  scores._composite = count>0 ? Math.round(total/count) : 0;
-  scores._count = count;
+
+  // Scale to 0–10, re-normalise for missing metrics
+  scores._composite = weightUsed > 0
+    ? Math.round((weightedSum / weightUsed) / 10 * 10) / 10  // one decimal, e.g. 7.4
+    : 0;
+  scores._count = STR_METRICS.filter(m => scores[m.key] != null).length;
   return scores;
 }
 
-// Group-relative score: 100 = best in group, 0 = worst in group — used for spider chart
 // ── Speed-tab MPH lookup ─────────────────────────────
 // Returns the best peak MPH for an athlete from the speed tab,
 // or null if no match found
@@ -2180,7 +2202,6 @@ function getSpeedTabMph(athleteName){
   const n = athleteName.toLowerCase().trim();
   const matches = speedData.filter(r=>{
     const rn = (r.athlete||'').toLowerCase().trim();
-    // Match on last name or full name
     const last = n.split(' ').pop();
     return rn===n || rn.includes(last) || n.includes(rn.split(' ').pop());
   });
@@ -2199,32 +2220,51 @@ function enrichWithSpeedTab(entry, athleteName){
   return entry;
 }
 
+// Group-relative score for spider chart
+// Blends benchmark-relative % with group rank to reduce drama on small samples.
+// With N athletes: as N grows, weight shifts toward group rank.
+// With tiny groups (2-3), stays mostly benchmark-anchored so the chart isn't extreme.
 function groupRelativeScores(athleteName){
   const raw = strSessions[athleteName]?.[strSessions[athleteName].length-1];
   if(!raw) return {};
   const athleteLatest = enrichWithSpeedTab(raw, athleteName);
-  // Build allLatest — enrich each athlete's session with speed tab too
   const allLatest = Object.entries(strSessions)
     .filter(([,s])=> s && s.length)
     .map(([n,s])=> enrichWithSpeedTab(s[s.length-1], n));
+  const n = allLatest.length;
+  // Blend factor: 0 = pure benchmark, 1 = pure group rank
+  // Reaches ~0.5 blend at 6 athletes, ~0.7 at 10+
+  const groupWeight = Math.min(0.7, (n - 1) / (n + 3));
+  const benchWeight = 1 - groupWeight;
+
   const rel = {};
   STR_METRICS.forEach(m=>{
     const myVal = athleteLatest[m.key];
     if(myVal==null){ rel[m.key]=null; return; }
+
+    // Benchmark-relative score (0–100)
+    const benchScore = Math.min((myVal / m.bench) * 100, 100);
+
+    // Group-rank score (0–100)
     const allVals = allLatest.map(s=>s[m.key]).filter(v=>v!=null);
-    if(allVals.length<2){ rel[m.key]=75; return; }
-    const gMin=Math.min(...allVals), gMax=Math.max(...allVals);
-    rel[m.key] = gMax===gMin ? 75 : Math.round(((myVal-gMin)/(gMax-gMin))*100);
+    let rankScore = benchScore; // fallback to bench if only one person has data
+    if(allVals.length >= 2){
+      const gMin = Math.min(...allVals), gMax = Math.max(...allVals);
+      rankScore = gMax===gMin ? 50 : ((myVal-gMin)/(gMax-gMin))*100;
+    }
+
+    rel[m.key] = Math.round(benchScore*benchWeight + rankScore*groupWeight);
   });
   return rel;
 }
 
 function gradeFromScore(s){
-  if(s>=90) return {grade:'ELITE',   color:'#22c55e'};
-  if(s>=75) return {grade:'ADVANCED',color:'#b59a57'};
-  if(s>=60) return {grade:'PROFICIENT',color:'#e8c84a'};
-  if(s>=45) return {grade:'DEVELOPING',color:'#d4956a'};
-  return            {grade:'BUILDING', color:'#9a7060'};
+  // s is now out of 10
+  if(s>=9.0) return {grade:'ELITE',      color:'#22c55e'};
+  if(s>=7.5) return {grade:'ADVANCED',   color:'#b59a57'};
+  if(s>=6.0) return {grade:'PROFICIENT', color:'#e8c84a'};
+  if(s>=4.5) return {grade:'DEVELOPING', color:'#d4956a'};
+  return             {grade:'BUILDING',  color:'#9a7060'};
 }
 
 // ── Main render ───────────────────────────────────
@@ -2297,7 +2337,7 @@ function renderStrAthlete(){
         </div>
         <div class="str-score-badge">
           <div class="str-score-val">${absScores._composite}</div>
-          <div class="str-score-lbl">RAS Score</div>
+          <div class="str-score-lbl">RAS / 10</div>
           <div class="str-score-grade" style="color:${color}">${grade}</div>
         </div>
       </div>
@@ -2363,7 +2403,7 @@ function renderStrAthlete(){
   if(sessions.length>1){
     histWrap.style.display='block';
     const tbl = document.getElementById('strHistoryTable');
-    tbl.innerHTML = `<thead><tr><th>Date</th><th>RAS</th>${STR_METRICS.map(m=>`<th>${m.label}</th>`).join('')}</tr></thead>
+    tbl.innerHTML = `<thead><tr><th>Date</th><th>RAS/10</th>${STR_METRICS.map(m=>`<th>${m.label}</th>`).join('')}</tr></thead>
       <tbody>${[...sessions].reverse().map(sess=>{
         const sc = scoreEntry(sess);
         const {color:gc} = gradeFromScore(sc._composite);
