@@ -1,0 +1,2278 @@
+[athletics-dashboard.html](https://github.com/user-attachments/files/26693712/athletics-dashboard.html)
+# Elon-Dashboard<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Elon Phoenix — Athletics Performance Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@300;400;500&family=Barlow+Condensed:wght@400;600;700;800&display=swap');
+
+  /* Elon Official Colors: Maroon #73000a | Gold #b59a57 */
+  :root {
+    --maroon:     #73000a;
+    --maroon-mid: #8c000c;
+    --maroon-lt:  #a50010;
+    --gold:       #b59a57;
+    --gold-lt:    #cdb97a;
+    --gold-dim:   #8a7540;
+    --bg:         #120003;
+    --surface:    #1c0005;
+    --surface2:   #240008;
+    --border:     #4a0010;
+    --border-lt:  #6b0016;
+    --text:       #ffffff;
+    --text-soft:  #f0e6d3;
+    --muted:      #9a7060;
+    --danger:     #ff4455;
+    --success:    #5dbb63;
+    --g1: #b59a57;
+    --g2: #e8c84a;
+    --g3: #ffffff;
+    --g4: #d4956a;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+    background-image: radial-gradient(ellipse 120% 60% at 50% -10%, rgba(115,0,10,0.35) 0%, transparent 70%);
+  }
+
+  .header {
+    background: linear-gradient(180deg, #73000a 0%, #500008 100%);
+    border-bottom: 3px solid var(--gold);
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    height: 68px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  }
+
+  .logo { font-family:'Bebas Neue',sans-serif; font-size:30px; letter-spacing:5px; color:#fff; line-height:1; }
+  .logo-sub { font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:600; letter-spacing:4px; color:var(--gold); text-transform:uppercase; line-height:1; margin-top:2px; }
+  .logo-divider { width:2px; height:36px; background:rgba(181,154,87,0.4); margin:0 4px; }
+
+  .tabs { display:flex; gap:4px; margin-left:auto; }
+
+  .tab-btn {
+    padding:9px 22px;
+    background:rgba(0,0,0,0.2);
+    border:1px solid rgba(181,154,87,0.25);
+    color:rgba(255,255,255,0.6);
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:13px; font-weight:600; letter-spacing:2px; text-transform:uppercase;
+    cursor:pointer; transition:all 0.2s; border-radius:3px;
+  }
+  .tab-btn:hover { color:#fff; background:rgba(181,154,87,0.15); border-color:var(--gold); }
+  .tab-btn.active { background:var(--gold); border-color:var(--gold); color:var(--maroon); font-weight:800; }
+
+  .tab-panel { display:none; padding:32px; }
+  .tab-panel.active { display:block; }
+
+  .upload-zone {
+    border:2px dashed var(--border-lt); border-radius:8px; padding:36px;
+    text-align:center; cursor:pointer; transition:all 0.3s;
+    background:var(--surface); margin-bottom:32px;
+  }
+  .upload-zone:hover, .upload-zone.drag-over { border-color:var(--gold); background:rgba(181,154,87,0.06); }
+  .upload-zone .icon { font-size:44px; margin-bottom:10px; }
+  .upload-zone p { color:var(--muted); font-size:12px; letter-spacing:1px; }
+  .upload-zone p strong { color:var(--gold); }
+  input[type="file"] { display:none; }
+
+  .section-title {
+    font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:4px;
+    color:var(--gold); margin-bottom:18px; display:flex; align-items:center; gap:12px;
+  }
+  .section-title::after { content:''; flex:1; height:1px; background:linear-gradient(90deg,var(--border-lt),transparent); }
+
+  .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px; margin-bottom:28px; }
+
+  .stat-card {
+    background:var(--surface); border:1px solid var(--border); border-radius:6px;
+    padding:18px 20px; position:relative; overflow:hidden;
+  }
+  .stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; }
+  .stat-card.g1::before { background:var(--g1); }
+  .stat-card.g2::before { background:var(--g2); }
+  .stat-card.g3::before { background:var(--g3); }
+  .stat-card.g4::before { background:var(--g4); }
+
+  .stat-label { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-bottom:6px; font-family:'Barlow Condensed',sans-serif; font-weight:600; }
+  .stat-value { font-family:'Bebas Neue',sans-serif; font-size:44px; line-height:1; color:#fff; }
+  .stat-sub { font-size:11px; color:var(--muted); margin-top:5px; }
+  .stat-change { font-size:12px; font-weight:500; margin-top:4px; font-family:'Barlow Condensed',sans-serif; letter-spacing:1px; }
+  .stat-change.up { color:var(--success); }
+  .stat-change.down { color:var(--danger); }
+  .stat-change.neutral { color:var(--muted); }
+
+  .chart-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(380px,1fr)); gap:20px; margin-bottom:28px; }
+  .chart-card { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:22px; }
+  .chart-card-title { font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--gold); margin-bottom:14px; opacity:0.85; }
+  .chart-container { position:relative; height:255px; }
+
+  .data-table { width:100%; border-collapse:collapse; font-size:12px; }
+  .data-table th { background:var(--surface2); padding:10px 14px; text-align:left; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--gold); border-bottom:1px solid var(--border-lt); font-family:'Barlow Condensed',sans-serif; font-weight:700; opacity:0.8; }
+  .data-table td { padding:10px 14px; border-bottom:1px solid rgba(115,0,10,0.3); color:var(--text-soft); }
+  .data-table tr:hover td { background:rgba(181,154,87,0.05); }
+
+  .badge { display:inline-block; padding:2px 9px; border-radius:2px; font-size:10px; letter-spacing:1px; font-weight:600; font-family:'Barlow Condensed',sans-serif; }
+  .badge.up { background:rgba(93,187,99,0.18); color:var(--success); }
+  .badge.down { background:rgba(255,68,85,0.18); color:var(--danger); }
+  .badge.neutral { background:rgba(154,112,96,0.2); color:var(--muted); }
+
+  .athlete-select-bar { display:flex; gap:12px; margin-bottom:22px; flex-wrap:wrap; align-items:center; }
+
+  .styled-select { background:var(--surface); border:1px solid var(--border-lt); color:var(--text); font-family:'DM Mono',monospace; font-size:12px; padding:8px 14px; border-radius:4px; cursor:pointer; outline:none; transition:border-color 0.2s; }
+  .styled-select:focus { border-color:var(--gold); }
+
+  .predict-btn { background:linear-gradient(135deg,var(--maroon),var(--maroon-lt)); border:2px solid var(--gold); color:var(--gold); font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; letter-spacing:3px; text-transform:uppercase; padding:9px 22px; border-radius:4px; cursor:pointer; transition:all 0.2s; }
+  .predict-btn:hover { background:var(--gold); color:var(--maroon); box-shadow:0 0 20px rgba(181,154,87,0.4); }
+
+  .prediction-card { background:linear-gradient(135deg,rgba(115,0,10,0.35),rgba(115,0,10,0.15)); border:1px solid rgba(181,154,87,0.4); border-radius:6px; padding:24px; margin-top:22px; }
+  .prediction-card .pred-title { font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:4px; color:var(--gold); margin-bottom:14px; }
+  .pred-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; }
+  .pred-item { background:rgba(0,0,0,0.35); border:1px solid var(--border); border-radius:4px; padding:14px; text-align:center; }
+  .pred-event { font-size:10px; letter-spacing:2px; color:var(--muted); margin-bottom:6px; font-family:'Barlow Condensed',sans-serif; font-weight:600; }
+  .pred-time { font-family:'Bebas Neue',sans-serif; font-size:38px; color:#fff; line-height:1; }
+  .pred-conf { font-size:10px; color:var(--gold); margin-top:4px; opacity:0.7; }
+
+  .week-nav { display:flex; align-items:center; gap:14px; margin-bottom:22px; }
+  .week-nav button { background:var(--surface); border:1px solid var(--border-lt); color:var(--gold); width:32px; height:32px; border-radius:4px; cursor:pointer; font-size:18px; transition:all 0.2s; display:flex; align-items:center; justify-content:center; }
+  .week-nav button:hover { background:var(--gold); color:var(--maroon); }
+  .week-nav span { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:3px; color:#fff; }
+
+  .info-bar { background:rgba(115,0,10,0.25); border:1px solid rgba(181,154,87,0.25); border-left:3px solid var(--gold); border-radius:4px; padding:11px 16px; font-size:11px; color:var(--muted); margin-bottom:22px; letter-spacing:0.5px; }
+  .info-bar strong { color:var(--gold); }
+
+  .empty-state { text-align:center; padding:80px 40px; color:var(--muted); }
+  .empty-state .icon { font-size:64px; margin-bottom:16px; opacity:0.6; }
+  .empty-state p { font-size:13px; letter-spacing:1px; }
+
+  .speedometer-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:24px; margin-top:22px; }
+
+  .speed-card {
+    background:radial-gradient(ellipse at top,#2a0008 0%,#120003 70%);
+    border:1px solid var(--border-lt); border-radius:12px; padding:22px 22px 18px;
+    text-align:center; position:relative; overflow:hidden;
+    box-shadow:0 8px 32px rgba(0,0,0,0.5),inset 0 1px 0 rgba(181,154,87,0.15);
+  }
+  .speed-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:linear-gradient(90deg,transparent,var(--gold),var(--gold-lt),var(--gold),transparent); }
+  .speed-card .athlete-name { font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:800; letter-spacing:3px; text-transform:uppercase; color:#fff; margin-bottom:2px; }
+  .speed-card .event-label { font-size:10px; color:var(--gold); letter-spacing:3px; text-transform:uppercase; margin-bottom:14px; opacity:0.8; font-family:'Barlow Condensed',sans-serif; font-weight:600; }
+
+  canvas.speedometer { display:block; margin:0 auto; }
+
+  .speed-readout { margin-top:6px; }
+  .speed-readout .mph-val { font-family:'Bebas Neue',sans-serif; font-size:52px; color:#fff; line-height:1; text-shadow:0 0 20px rgba(181,154,87,0.6); letter-spacing:2px; }
+  .speed-readout .mph-label { font-size:11px; letter-spacing:5px; color:var(--gold); font-family:'Barlow Condensed',sans-serif; font-weight:600; opacity:0.8; }
+  .speed-readout .peak-mph { margin-top:6px; font-size:12px; color:var(--gold-lt); font-family:'Barlow Condensed',sans-serif; font-weight:600; letter-spacing:1px; }
+
+  .speed-detail { margin-top:14px; display:flex; justify-content:space-around; padding-top:14px; border-top:1px solid var(--border); }
+  .speed-detail div { text-align:center; }
+  .speed-detail .val { font-size:17px; color:#fff; font-weight:500; font-family:'Barlow Condensed',sans-serif; }
+  .speed-detail .lbl { font-size:9px; letter-spacing:2px; color:var(--muted); margin-top:2px; text-transform:uppercase; }
+
+  /* ── Event chips ──────────────────────────────── */
+  .event-chip {
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-family: 'Barlow Condensed', sans-serif;
+    border: 1px solid var(--border-lt);
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .event-chip:hover { border-color: var(--gold); color: var(--gold); }
+  .event-chip.chip-active { background: var(--gold); border-color: var(--gold); color: var(--maroon); }
+
+  optgroup { color: var(--muted); font-style: normal; }
+
+  /* ── Coach View Tab ─────────────────────────────── */
+  .coach-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin-bottom:28px; }
+  .coach-stat { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:16px; text-align:center; }
+  .coach-stat .cs-val { font-family:'Bebas Neue',sans-serif; font-size:44px; line-height:1; }
+  .coach-stat .cs-lbl { font-size:10px; letter-spacing:2px; color:var(--muted); font-family:'Barlow Condensed',sans-serif; font-weight:600; text-transform:uppercase; margin-top:4px; }
+  .coach-table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:6px; overflow:hidden; }
+  .filter-bar { display:flex; gap:10px; padding:14px 16px; border-bottom:1px solid var(--border); flex-wrap:wrap; align-items:center; }
+  .filter-bar label { font-size:10px; letter-spacing:2px; color:var(--gold); font-family:'Barlow Condensed',sans-serif; font-weight:600; text-transform:uppercase; }
+  .notes-area { width:100%; background:rgba(0,0,0,0.3); border:1px solid var(--border-lt); color:var(--text-soft); font-family:'DM Mono',monospace; font-size:11px; padding:8px 10px; border-radius:4px; resize:vertical; min-height:40px; outline:none; }
+  .notes-area:focus { border-color:var(--gold); }
+  .flag-btn { background:none; border:none; cursor:pointer; font-size:14px; padding:2px 4px; opacity:0.5; transition:opacity 0.2s; }
+  .flag-btn:hover, .flag-btn.flagged { opacity:1; }
+
+  /* ── Stoplight coach cards ──────────────────────── */
+  .cs-pill { display:flex;flex-direction:column;align-items:center;padding:14px 20px;border-radius:8px;border:1px solid;min-width:110px;text-align:center; }
+  .coach-group-header { font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:4px;margin:20px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--border); }
+  .coach-cards-row { display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-bottom:8px; }
+  .coach-card { background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px;transition:border-color 0.2s; }
+  .coach-card:hover { border-color:var(--border-lt); }
+  .stoplight-pip-row { display:flex;gap:5px;justify-content:flex-end;margin-top:4px; }
+
+  /* ── Strength & Power Tab ───────────────────────── */
+  .str-layout { display:grid; grid-template-columns:320px 1fr; gap:24px; align-items:start; }
+  @media(max-width:900px){ .str-layout { grid-template-columns:1fr; } }
+
+  .str-upload-col { display:flex; flex-direction:column; gap:14px; }
+  .str-upload-box {
+    background:var(--surface); border:1px dashed var(--border-lt); border-radius:8px;
+    padding:20px; text-align:center; cursor:pointer; transition:border-color 0.2s;
+  }
+  .str-upload-box:hover { border-color:var(--gold); }
+  .str-upload-box .icon { font-size:26px; margin-bottom:8px; }
+  .str-upload-box p { font-size:11px; color:var(--muted); line-height:1.6; font-family:'Barlow Condensed',sans-serif; letter-spacing:1px; }
+  .str-upload-box strong { color:var(--gold); }
+
+  .str-athlete-select {
+    background:var(--surface2); border:1px solid var(--border-lt); color:#fff;
+    font-family:'Barlow Condensed',sans-serif; font-size:14px; font-weight:600;
+    letter-spacing:2px; text-transform:uppercase; padding:10px 14px;
+    border-radius:4px; width:100%; outline:none; cursor:pointer;
+  }
+  .str-athlete-select:focus { border-color:var(--gold); }
+
+  .str-metrics-panel {
+    background:var(--surface); border:1px solid var(--border); border-radius:8px;
+    padding:0; overflow:hidden;
+  }
+  .str-panel-header {
+    background:linear-gradient(135deg,var(--surface2),var(--surface));
+    border-bottom:1px solid var(--border);
+    padding:16px 22px; display:flex; align-items:center; justify-content:space-between;
+  }
+  .str-panel-title { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:4px; color:#fff; }
+  .str-panel-sub { font-size:10px; letter-spacing:2px; color:var(--muted); font-family:'Barlow Condensed',sans-serif; font-weight:600; text-transform:uppercase; }
+
+  .str-score-badge {
+    display:flex; flex-direction:column; align-items:center;
+    background:rgba(181,154,87,0.1); border:2px solid var(--gold);
+    border-radius:8px; padding:10px 20px; min-width:90px;
+  }
+  .str-score-val { font-family:'Bebas Neue',sans-serif; font-size:40px; line-height:1; color:var(--gold); }
+  .str-score-lbl { font-size:8px; letter-spacing:2px; color:var(--muted); font-family:'Barlow Condensed',sans-serif; font-weight:700; text-transform:uppercase; margin-top:2px; }
+  .str-score-grade { font-size:13px; letter-spacing:1px; font-family:'Barlow Condensed',sans-serif; font-weight:800; margin-top:2px; }
+
+  .str-body { padding:20px 22px; display:grid; grid-template-columns:1fr 280px; gap:24px; align-items:start; }
+  @media(max-width:700px){ .str-body { grid-template-columns:1fr; } }
+
+  .str-metrics-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .str-metric-card {
+    background:var(--surface2); border:1px solid var(--border); border-radius:6px;
+    padding:12px 14px; position:relative; overflow:hidden;
+  }
+  .str-metric-card::after {
+    content:''; position:absolute; bottom:0; left:0; right:0; height:3px;
+    background:var(--bar-color, var(--gold)); opacity:0.7;
+  }
+  .str-metric-name { font-size:10px; letter-spacing:2px; color:var(--muted); font-family:'Barlow Condensed',sans-serif; font-weight:700; text-transform:uppercase; margin-bottom:4px; }
+  .str-metric-val { font-family:'Bebas Neue',sans-serif; font-size:28px; line-height:1; color:#fff; }
+  .str-metric-unit { font-size:10px; color:var(--gold); letter-spacing:1px; font-family:'Barlow Condensed',sans-serif; font-weight:600; margin-left:4px; }
+  .str-metric-pct { font-size:10px; font-family:'DM Mono',monospace; margin-top:4px; }
+  .str-pct-bar { height:3px; background:var(--border); border-radius:2px; margin-top:5px; overflow:hidden; }
+  .str-pct-fill { height:100%; border-radius:2px; background:var(--bar-color, var(--gold)); transition:width 0.6s ease; }
+
+  .str-radar-wrap { display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .str-radar-canvas { width:100%; max-width:280px; }
+
+  .str-history-table { width:100%; border-collapse:collapse; font-size:11px; margin-top:8px; }
+  .str-history-table th { font-family:'Barlow Condensed',sans-serif; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--gold); padding:8px 10px; border-bottom:1px solid var(--border); text-align:left; font-weight:700; }
+  .str-history-table td { padding:7px 10px; border-bottom:1px solid rgba(74,0,16,0.4); color:var(--text-soft); vertical-align:middle; }
+  .str-history-table tr:hover td { background:rgba(181,154,87,0.04); }
+  .str-trend { font-size:13px; }
+
+  .str-empty { text-align:center; padding:48px 20px; color:var(--muted); }
+  .str-empty .icon { font-size:40px; margin-bottom:12px; }
+  .str-empty p { font-size:11px; letter-spacing:1px; font-family:'Barlow Condensed',sans-serif; }
+</style>
+<script>
+// Early stub so onclick="switchTab(...)" in HTML doesn't throw before main script loads
+function switchTab(name,btn){
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  btn.classList.add('active');
+  if(name==='strength' && !window._strLoaded){
+    window._strLoaded=true;
+    if(typeof loadStrFromSupabase==='function' && location.protocol!=='file:') loadStrFromSupabase();
+  }
+}
+</script>
+</head>
+<body>
+
+<div id="dashboardBody">
+<div class="header">
+  <div>
+    <div class="logo">ELON PHOENIX</div>
+    <div class="logo-sub">Track &amp; Field · Performance System</div>
+  </div>
+  <div class="logo-divider"></div>
+  <div class="tabs">
+    <button class="tab-btn active" id="tabBtn-volume" onclick="switchTab('volume',this)">📊 Volume</button>
+    <button class="tab-btn" id="tabBtn-performance" onclick="switchTab('performance',this)">🏃 Performance</button>
+    <button class="tab-btn" id="tabBtn-speed" onclick="switchTab('speed',this)">⚡ Top Speed</button>
+    <button class="tab-btn" id="tabBtn-strength" onclick="switchTab('strength',this)">💪 Strength</button>
+  </div>
+</div>
+<!-- TAB 1: VOLUME -->
+<div class="tab-panel active" id="tab-volume">
+  <div class="info-bar">Upload Excel or CSV with columns: <strong>Date · Athlete · Group · Event · Volume</strong> — Groups: <strong>Short Sprints, Short Hurdles, Long Hurdles, Long Sprints</strong>. Column names are flexible — the system auto-detects them.</div>
+  <div class="upload-zone" id="uploadZone" onclick="document.getElementById('excelInput').click()">
+    <div class="icon">📊</div>
+    <p><strong>Click to upload Volume file</strong> or drag &amp; drop</p>
+    <p style="margin-top:5px">Accepts .xlsx, .xls, .csv</p>
+    <input type="file" id="excelInput" accept=".xlsx,.xls,.csv" onchange="handleExcelUpload(event)">
+  </div>
+  <div id="volumeStatus" style="display:none;margin-bottom:16px;padding:10px 16px;border-radius:4px;font-size:11px;letter-spacing:0.5px;border-left:3px solid var(--gold);background:rgba(115,0,10,0.2);color:var(--text-soft)"></div>
+  <div id="volumeContent" style="display:none">
+    <div class="section-title">Weekly Overview</div>
+    <div class="week-nav">
+      <button onclick="prevWeek()">&#8249;</button>
+      <span id="weekLabel">Week 1</span>
+      <button onclick="nextWeek()">&#8250;</button>
+      <span style="font-size:11px;color:var(--muted);margin-left:6px" id="weekDateRange"></span>
+    </div>
+    <div class="stats-grid" id="weeklyStats"></div>
+    <div class="chart-grid">
+      <div class="chart-card"><div class="chart-card-title">Daily Volume by Group</div><div class="chart-container"><canvas id="dailyVolumeChart"></canvas></div></div>
+      <div class="chart-card"><div class="chart-card-title">Weekly Volume Trend</div><div class="chart-container"><canvas id="weeklyTrendChart"></canvas></div></div>
+    </div>
+    <div class="section-title">Week-to-Week % Change</div>
+    <div class="chart-card" style="margin-bottom:24px"><div class="chart-container"><canvas id="changeChart"></canvas></div></div>
+    <div class="section-title">Weekly Summary</div>
+    <div class="chart-card">
+      <table class="data-table">
+        <thead><tr><th>Week</th><th>Short Sprints</th><th>Short Hurdles</th><th>Long Hurdles</th><th>Long Sprints</th><th>Total</th><th>Delta vs Prior</th></tr></thead>
+        <tbody id="weeklyTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="empty-state" id="volumeEmpty"><div class="icon">&#128193;</div><p>Upload your training Excel to see volume analytics</p></div>
+</div>
+
+<!-- TAB 2: PERFORMANCE -->
+<div class="tab-panel" id="tab-performance">
+
+  <!-- Header bar -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:12px">
+    <div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:4px;color:#fff">Performance Data</div>
+      <div style="font-size:11px;letter-spacing:2px;color:var(--muted);font-family:'Barlow Condensed',sans-serif;font-weight:600;text-transform:uppercase">
+        Source: TFRRS · Elon Women's T&amp;F · Indoor + Outdoor 2025–26
+        <a href="https://www.tfrrs.org/all_performances/NC_college_f_Elon.html?list_hnd=5481&amp;season_hnd=705" target="_blank" style="color:var(--gold);text-decoration:none;margin-left:8px">↗ Indoor</a>
+        <a href="https://www.tfrrs.org/all_performances/NC_college_f_Elon.html?list_hnd=5771&amp;season_hnd=730" target="_blank" style="color:var(--gold);text-decoration:none;margin-left:8px">↗ Outdoor</a>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button onclick="openAddAthleteModal()" style="background:none;border:2px solid var(--border-lt);color:var(--muted);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:8px 16px;border-radius:4px;cursor:pointer;transition:all 0.2s" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border-lt)';this.style.color='var(--muted)'">+ Add Athletes</button>
+      <button id="refreshBtn" onclick="refreshTFRRS()" style="background:linear-gradient(135deg,rgba(181,154,87,0.15),rgba(181,154,87,0.05));border:2px solid var(--gold);color:var(--gold);font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:8px 16px;border-radius:4px;cursor:pointer;transition:all 0.2s" onmouseover="this.style.background='var(--gold)';this.style.color='var(--maroon)'" onmouseout="this.style.background='linear-gradient(135deg,rgba(181,154,87,0.15),rgba(181,154,87,0.05))';this.style.color='var(--gold)'">⟳ Refresh TFRRS</button>
+      <div id="lastSyncLabel" style="font-size:10px;letter-spacing:1px;color:var(--muted);font-family:'DM Mono',monospace"></div>
+    </div>
+  </div>
+
+  <!-- Active roster pills -->
+  <div id="rosterPills" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px"></div>
+
+  <div id="perfContent">
+    <div class="athlete-select-bar">
+      <select class="styled-select" id="athleteSelect" onchange="updateAthleteView()"><option value="">All Athletes</option></select>
+      <select class="styled-select" id="eventSelect" onchange="updateAthleteView()"><option value="">All Events</option></select>
+      <button class="predict-btn" onclick="generatePredictions()">&#9889; Generate Predictions</button>
+    </div>
+    <div id="athleteChips" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:20px;min-height:28px"></div>
+    <div class="chart-grid">
+      <div class="chart-card"><div class="chart-card-title">Performance Trend — Indoor vs Outdoor</div><div class="chart-container"><canvas id="perfTrendChart"></canvas></div></div>
+      <div class="chart-card"><div class="chart-card-title">Season Progression</div><div class="chart-container"><canvas id="seasonChart"></canvas></div></div>
+    </div>
+    <div id="predictionOutput"></div>
+    <div class="section-title" style="margin-top:24px">All Performances</div>
+    <div class="chart-card">
+      <table class="data-table">
+        <thead><tr><th>Athlete</th><th>Event</th><th>Time / Mark</th><th>Meet</th><th>Date</th><th>Season</th><th>vs PR</th></tr></thead>
+        <tbody id="perfTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Add Athlete Modal -->
+<div id="addAthleteModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.75);backdrop-filter:blur(6px);align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border-lt);border-radius:12px;padding:36px 40px;min-width:360px;max-width:480px;box-shadow:0 24px 80px rgba(0,0,0,0.7)">
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:4px;color:var(--gold);margin-bottom:6px">Add Athletes to Dashboard</div>
+    <p style="font-size:11px;color:var(--muted);letter-spacing:1px;margin-bottom:20px;line-height:1.6">These athletes will be added to the preset list and their TFRRS data will appear. Names must match the TFRRS roster.</p>
+    <div id="addAthList" style="max-height:200px;overflow-y:auto;margin-bottom:16px"></div>
+    <textarea id="addAthInput" placeholder="One athlete per line, e.g.&#10;Lizzie Lopez&#10;Hannah Schonhoff" style="width:100%;height:80px;background:rgba(0,0,0,0.4);border:1px solid var(--border-lt);color:#fff;font-family:'DM Mono',monospace;font-size:12px;padding:10px 14px;border-radius:6px;outline:none;resize:vertical;margin-bottom:12px"></textarea>
+    <div style="display:flex;gap:10px">
+      <button onclick="applyAddAthletes()" style="flex:1;background:linear-gradient(135deg,var(--maroon),var(--maroon-lt));border:2px solid var(--gold);color:var(--gold);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:3px;text-transform:uppercase;padding:11px;border-radius:6px;cursor:pointer">Add</button>
+      <button onclick="closeAddAthleteModal()" style="flex:1;background:none;border:2px solid var(--border-lt);color:var(--muted);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:3px;text-transform:uppercase;padding:11px;border-radius:6px;cursor:pointer">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 3: TOP SPEED -->
+<div class="tab-panel" id="tab-speed">
+  <div class="info-bar">Upload a file with columns: <strong>Athlete · Event · Fly10m_seconds</strong> (or similar names — auto-detected). The 10m fly time converts to MPH. Peak velocity = MPH × 1.04. Also accepts a column named <strong>mph</strong> or <strong>top_speed</strong> to skip the conversion.</div>
+  <div class="upload-zone" id="speedUploadZone" onclick="document.getElementById('speedInput').click()">
+    <div class="icon">&#9889;</div>
+    <p><strong>Click to upload Speed file</strong> or drag &amp; drop</p>
+    <p style="margin-top:5px">Accepts .csv, .xlsx, .xls</p>
+    <input type="file" id="speedInput" accept=".csv,.xlsx,.xls" onchange="handleSpeedUpload(event)">
+  </div>
+  <div id="speedStatus" style="display:none;margin-bottom:16px;padding:10px 16px;border-radius:4px;font-size:11px;letter-spacing:0.5px;border-left:3px solid var(--gold);background:rgba(115,0,10,0.2);color:var(--text-soft)"></div>
+  <div id="speedContent" style="display:none">
+    <div class="section-title">Top Speed Dashboard</div>
+    <div class="speedometer-grid" id="speedometerGrid"></div>
+  </div>
+  <div class="empty-state" id="speedEmpty"><div class="icon">&#128640;</div><p>Upload speed CSV to see speedometer readings</p></div>
+</div>
+
+<!-- TAB 4: STRENGTH & POWER -->
+<div class="tab-panel" id="tab-strength">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+    <div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:4px;color:#fff">Strength &amp; Power</div>
+      <div style="font-size:11px;letter-spacing:2px;color:var(--muted);font-family:'Barlow Condensed',sans-serif;font-weight:600;text-transform:uppercase">Athlete Scoring · Radar Analysis · Session History</div>
+    </div>
+    <div id="strSyncLabel" style="font-size:10px;letter-spacing:1px;color:var(--muted);font-family:'DM Mono',monospace"></div>
+  </div>
+
+  <div class="str-layout">
+    <!-- LEFT: upload + athlete select -->
+    <div class="str-upload-col">
+      <div class="str-upload-box" id="strUploadZone" onclick="document.getElementById('strInput').click()"
+        ondragover="event.preventDefault();this.style.borderColor='var(--gold)'"
+        ondragleave="this.style.borderColor='var(--border-lt)'"
+        ondrop="event.preventDefault();this.style.borderColor='var(--border-lt)';handleStrDrop(event)">
+        <div class="icon">💪</div>
+        <p><strong>Click or drop to upload</strong><br>.csv · .xlsx · .xls</p>
+        <p style="margin-top:6px;font-size:10px">Columns: <strong>Athlete · MPH · Front Squat · Barbell CMJ · Vertical Jump · Approach Jump · HF CMJ · RDL · Split Squat</strong></p>
+        <input type="file" id="strInput" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleStrUpload(event)">
+      </div>
+
+      <div id="strUploadStatus" style="display:none;padding:8px 12px;border-radius:4px;font-size:11px;letter-spacing:0.5px;border-left:3px solid var(--gold);background:rgba(115,0,10,0.2);color:var(--text-soft)"></div>
+
+      <!-- Athlete selector -->
+      <div>
+        <div style="font-size:10px;letter-spacing:2px;color:var(--gold);font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;margin-bottom:6px">Select Athlete</div>
+        <select id="strAthleteSelect" class="str-athlete-select" onchange="renderStrAthlete()">
+          <option value="">— Choose Athlete —</option>
+        </select>
+      </div>
+
+      <!-- Session history table -->
+      <div id="strHistoryWrap" style="display:none">
+        <div style="font-size:10px;letter-spacing:2px;color:var(--gold);font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;margin-bottom:8px">Session History</div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;overflow:hidden">
+          <table class="str-history-table" id="strHistoryTable"></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: athlete panel -->
+    <div>
+      <div id="strAthletePanel">
+        <div class="str-empty">
+          <div class="icon">📊</div>
+          <p>Upload a file and select an athlete<br>to view their strength profile</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Supabase ────────────────────────────────────────────
+const SUPA_URL = 'https://mfdzdpmckxzjbirmaarq.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mZHpkcG1ja3h6amJpcm1hYXJxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMTg1NTgsImV4cCI6MjA5MTY5NDU1OH0.JWjZOkyJe4yXsLWfgI-GgiHN_nvDRdioWsRS49-MEZ4';
+const SUPA_HDR = { 'Content-Type':'application/json', 'apikey': SUPA_KEY, 'Authorization': 'Bearer '+SUPA_KEY };
+// Detect file:// — Supabase fetch works fine from http/https but not from local file://
+const IS_FILE_PROTO = location.protocol === 'file:';
+
+async function supaGet(table, select='*'){
+  if(IS_FILE_PROTO) throw new Error('file:// — open via server to enable Supabase sync');
+  const r = await fetch(`${SUPA_URL}/rest/v1/${table}?select=${select}&order=uploaded_at.asc`, { headers: SUPA_HDR });
+  if(!r.ok) throw new Error(`Supabase GET ${table}: ${r.status}`);
+  return r.json();
+}
+async function supaInsert(table, rows){
+  if(IS_FILE_PROTO) throw new Error('file:// — open via server to enable Supabase sync');
+  const r = await fetch(`${SUPA_URL}/rest/v1/${table}`, {
+    method:'POST', headers:{...SUPA_HDR, 'Prefer':'return=minimal'},
+    body: JSON.stringify(rows)
+  });
+  if(!r.ok){ const t=await r.text(); throw new Error(`Supabase INSERT ${table}: ${r.status} ${t}`); }
+}
+async function supaDelete(table, filter){
+  if(IS_FILE_PROTO) throw new Error('file:// — open via server to enable Supabase sync');
+  const r = await fetch(`${SUPA_URL}/rest/v1/${table}?${filter}`, {
+    method:'DELETE', headers:{...SUPA_HDR, 'Prefer':'return=minimal'}
+  });
+  if(!r.ok) throw new Error(`Supabase DELETE ${table}: ${r.status}`);
+}
+
+let volumeData=[],perfData=[],speedData=[];
+let currentWeek=0,allWeeks=[];
+let chartInstances={};
+
+const GROUPS=['Short Sprints','Short Hurdles','Long Hurdles','Long Sprints'];
+const GROUP_COLORS=['#b59a57','#e8c84a','#ffffff','#d4956a'];
+
+// ── Elon Phoenix Roster ────────────────────────────────
+// Name must fuzzy-match what's in the uploaded file
+// ── Preset locked roster (always shown, data filtered to these + any queued additions)
+const PRESET_ROSTER = [
+  'Mya Lee', 'Teri Pridgen', 'Amelie Meier', 'Mia Stimpson',
+  "Ja'mia Johnson", 'Mary Sollars', 'Duna Vinals', 'Olivia Waymer'
+];
+let EXTRA_ATHLETES = []; // queued additions via "+ Add Athletes"
+
+const ROSTER = [
+  { name: 'Mya Lee',          group: 'Short Sprints', events: ['60m','200m'] },
+  { name: 'Teri Pridgen',     group: 'Short Sprints', events: ['60m','200m'] },
+  { name: 'Amelie Meier',     group: 'Short Sprints', events: ['60m','200m','400m'] },
+  { name: 'Mary Sollars',     group: 'Long Sprints',  events: ['200m','400m'] },
+  { name: 'Duna Vinals',      group: 'Long Hurdles',  events: ['200m','400m'] },
+  { name: "Ja'mia Johnson",   group: 'Short Hurdles', events: ['60H','200m'] },
+  { name: 'Mia Stimpson',     group: 'Short Hurdles', events: ['60H'] },
+  { name: 'Olivia Waymer',    group: 'Short Hurdles', events: ['60H','200m'] },
+];
+
+// TFRRS data — Indoor 2025–26, Elon Women's T&F
+// Sourced from https://www.tfrrs.org/all_performances/NC_college_f_Elon.html?list_hnd=5481&season_hnd=705
+const TFRRS_DATA = [
+  // 60 Meters
+  {athlete:"Mya Lee",      event:"60m", time:7.50, meet:"2026 CAA Indoor Championship",  date:"2026-02-22", season:"indoor"},
+  {athlete:"Mya Lee",      event:"60m", time:7.61, meet:"2026 Darius Dixon Memorial",    date:"2026-02-13", season:"indoor"},
+  {athlete:"Mya Lee",      event:"60m", time:7.64, meet:"2026 CAA Indoor Championship",  date:"2026-02-22", season:"indoor"},
+  {athlete:"Mya Lee",      event:"60m", time:7.66, meet:"Mondo College Invitational",    date:"2026-01-17", season:"indoor"},
+  {athlete:"Mya Lee",      event:"60m", time:7.67, meet:"2026 Darius Dixon Memorial",    date:"2026-02-13", season:"indoor"},
+  {athlete:"Mya Lee",      event:"60m", time:7.69, meet:"Mondo College Invitational",    date:"2026-01-17", season:"indoor"},
+  {athlete:"Mya Lee",      event:"60m", time:7.73, meet:"Doc Hale Invitational",         date:"2026-02-06", season:"indoor"},
+  {athlete:"Mya Lee",      event:"60m", time:7.75, meet:"2026 Liberty Open",             date:"2026-01-23", season:"indoor"},
+  {athlete:"Teri Pridgen", event:"60m", time:7.75, meet:"Doc Hale Invitational",         date:"2026-02-06", season:"indoor"},
+  {athlete:"Amelie Meier", event:"60m", time:7.77, meet:"Mondo College Invitational",    date:"2026-01-17", season:"indoor"},
+  {athlete:"Teri Pridgen", event:"60m", time:7.79, meet:"2026 CAA Indoor Championship",  date:"2026-02-22", season:"indoor"},
+  {athlete:"Amelie Meier", event:"60m", time:7.82, meet:"2026 Liberty Open",             date:"2026-01-23", season:"indoor"},
+  {athlete:"Teri Pridgen", event:"60m", time:7.85, meet:"2025 Liberty Kick Off",         date:"2025-12-04", season:"indoor"},
+  {athlete:"Amelie Meier", event:"60m", time:7.86, meet:"2025 Liberty Kick Off",         date:"2025-12-04", season:"indoor"},
+  {athlete:"Teri Pridgen", event:"60m", time:7.87, meet:"2026 Darius Dixon Memorial",    date:"2026-02-13", season:"indoor"},
+  // 60 Hurdles
+  {athlete:"Ja'mia Johnson", event:"60H", time:8.60, meet:"2026 Darius Dixon Memorial",    date:"2026-02-13", season:"indoor"},
+  {athlete:"Ja'mia Johnson", event:"60H", time:8.65, meet:"2026 CAA Indoor Championship",  date:"2026-02-22", season:"indoor"},
+  {athlete:"Ja'mia Johnson", event:"60H", time:8.66, meet:"2026 Darius Dixon Memorial",    date:"2026-02-13", season:"indoor"},
+  {athlete:"Ja'mia Johnson", event:"60H", time:8.66, meet:"2026 CAA Indoor Championship",  date:"2026-02-22", season:"indoor"},
+  {athlete:"Ja'mia Johnson", event:"60H", time:8.67, meet:"Doc Hale Invitational",         date:"2026-02-06", season:"indoor"},
+  {athlete:"Mia Stimpson",   event:"60H", time:8.71, meet:"Doc Hale Invitational",         date:"2026-02-06", season:"indoor"},
+  {athlete:"Ja'mia Johnson", event:"60H", time:8.73, meet:"Doc Hale Invitational",         date:"2026-02-06", season:"indoor"},
+  {athlete:"Ja'mia Johnson", event:"60H", time:8.79, meet:"2026 Liberty Open",             date:"2026-01-23", season:"indoor"},
+  {athlete:"Mia Stimpson",   event:"60H", time:8.79, meet:"2026 CAA Indoor Championship",  date:"2026-02-22", season:"indoor"},
+  {athlete:"Ja'mia Johnson", event:"60H", time:8.82, meet:"2026 Darius Dixon Memorial",    date:"2026-02-13", season:"indoor"},
+  {athlete:"Ja'mia Johnson", event:"60H", time:8.86, meet:"2026 Liberty Open",             date:"2026-01-23", season:"indoor"},
+  {athlete:"Ja'mia Johnson", event:"60H", time:8.87, meet:"Mondo College Invitational",    date:"2026-01-17", season:"indoor"},
+  {athlete:"Mia Stimpson",   event:"60H", time:8.90, meet:"2026 Liberty Open",             date:"2026-01-23", season:"indoor"},
+  {athlete:"Mia Stimpson",   event:"60H", time:8.91, meet:"Doc Hale Invitational",         date:"2026-02-06", season:"indoor"},
+  {athlete:"Ja'mia Johnson", event:"60H", time:8.91, meet:"2025 Liberty Kick Off",         date:"2025-12-04", season:"indoor"},
+  {athlete:"Mia Stimpson",   event:"60H", time:8.92, meet:"2026 Darius Dixon Memorial",    date:"2026-02-13", season:"indoor"},
+  {athlete:"Mia Stimpson",   event:"60H", time:8.93, meet:"2026 Liberty Open",             date:"2026-01-23", season:"indoor"},
+  {athlete:"Ja'mia Johnson", event:"60H", time:8.93, meet:"Mondo College Invitational",    date:"2026-01-17", season:"indoor"},
+  {athlete:"Ja'mia Johnson", event:"60H", time:9.04, meet:"2025 Liberty Kick Off",         date:"2025-12-04", season:"indoor"},
+  {athlete:"Olivia Waymer",  event:"60H", time:9.07, meet:"2026 Darius Dixon Memorial",    date:"2026-02-13", season:"indoor"},
+  {athlete:"Mia Stimpson",   event:"60H", time:9.09, meet:"Mondo College Invitational",    date:"2026-01-17", season:"indoor"},
+  {athlete:"Mia Stimpson",   event:"60H", time:9.10, meet:"2025 Liberty Kick Off",         date:"2025-12-04", season:"indoor"},
+  {athlete:"Olivia Waymer",  event:"60H", time:9.22, meet:"2026 Liberty Open",             date:"2026-01-23", season:"indoor"},
+  {athlete:"Olivia Waymer",  event:"60H", time:9.24, meet:"Mondo College Invitational",    date:"2026-01-17", season:"indoor"},
+  // 200 Meters
+  {athlete:"Amelie Meier",   event:"200m", time:24.70, meet:"2026 CAA Indoor Championship",  date:"2026-02-22", season:"indoor"},
+  {athlete:"Amelie Meier",   event:"200m", time:24.91, meet:"2026 Darius Dixon Memorial",    date:"2026-02-13", season:"indoor"},
+  {athlete:"Amelie Meier",   event:"200m", time:25.02, meet:"2026 Liberty Open",             date:"2026-01-23", season:"indoor"},
+  {athlete:"Amelie Meier",   event:"200m", time:25.05, meet:"Doc Hale Invitational",         date:"2026-02-06", season:"indoor"},
+  {athlete:"Amelie Meier",   event:"200m", time:25.42, meet:"2025 Liberty Kick Off",         date:"2025-12-04", season:"indoor"},
+  {athlete:"Teri Pridgen",   event:"200m", time:25.56, meet:"2026 CAA Indoor Championship",  date:"2026-02-22", season:"indoor"},
+  {athlete:"Teri Pridgen",   event:"200m", time:25.56, meet:"Doc Hale Invitational",         date:"2026-02-06", season:"indoor"},
+  {athlete:"Teri Pridgen",   event:"200m", time:25.60, meet:"2025 Liberty Kick Off",         date:"2025-12-04", season:"indoor"},
+  {athlete:"Mary Sollars",   event:"200m", time:25.69, meet:"2026 Liberty Open",             date:"2026-01-23", season:"indoor"},
+  {athlete:"Mary Sollars",   event:"200m", time:25.71, meet:"2025 Liberty Kick Off",         date:"2025-12-04", season:"indoor"},
+  {athlete:"Duna Vinals",    event:"200m", time:25.80, meet:"2025 Liberty Kick Off",         date:"2025-12-04", season:"indoor"},
+  {athlete:"Duna Vinals",    event:"200m", time:26.09, meet:"Doc Hale Invitational",         date:"2026-02-06", season:"indoor"},
+  {athlete:"Mya Lee",        event:"200m", time:26.30, meet:"2026 Liberty Open",             date:"2026-01-23", season:"indoor"},
+  {athlete:"Mary Sollars",   event:"200m", time:26.92, meet:"2026 Darius Dixon Memorial",    date:"2026-02-13", season:"indoor"},
+  {athlete:"Ja'mia Johnson", event:"200m", time:26.97, meet:"Mondo College Invitational",    date:"2026-01-17", season:"indoor"},
+  {athlete:"Olivia Waymer",  event:"200m", time:27.64, meet:"Mondo College Invitational",    date:"2026-01-17", season:"indoor"},
+  // 400 Meters
+  {athlete:"Duna Vinals",    event:"400m", time:56.61, meet:"2026 Liberty Open",             date:"2026-01-23", season:"indoor"},
+  {athlete:"Duna Vinals",    event:"400m", time:56.88, meet:"2026 Darius Dixon Memorial",    date:"2026-02-13", season:"indoor"},
+  {athlete:"Duna Vinals",    event:"400m", time:57.00, meet:"2026 CAA Indoor Championship",  date:"2026-02-22", season:"indoor"},
+  {athlete:"Duna Vinals",    event:"400m", time:57.27, meet:"Doc Hale Invitational",         date:"2026-02-06", season:"indoor"},
+  {athlete:"Duna Vinals",    event:"400m", time:57.42, meet:"Mondo College Invitational",    date:"2026-01-17", season:"indoor"},
+  {athlete:"Duna Vinals",    event:"400m", time:57.73, meet:"2025 Liberty Kick Off",         date:"2025-12-04", season:"indoor"},
+  {athlete:"Amelie Meier",   event:"400m", time:57.85, meet:"2026 Darius Dixon Memorial",    date:"2026-02-13", season:"indoor"},
+  {athlete:"Mary Sollars",   event:"400m", time:58.74, meet:"2025 Liberty Kick Off",         date:"2025-12-04", season:"indoor"},
+  {athlete:"Mary Sollars",   event:"400m", time:59.62, meet:"Mondo College Invitational",    date:"2026-01-17", season:"indoor"},
+  {athlete:"Mary Sollars",   event:"400m", time:61.09, meet:"2026 Darius Dixon Memorial",    date:"2026-02-13", season:"indoor"},
+];
+
+// Outdoor 2026 season — sourced from tfrrs.org list_hnd=5771&season_hnd=730 (fetched Apr 12 2026)
+const OUTDOOR_DATA = [
+  // 100 Hurdles
+  {athlete:"Mia Stimpson",      event:"100H", time:13.98, meet:"Duke Invitational",                              date:"2026-04-10", season:"outdoor"},
+  {athlete:"Ja'mia Johnson",    event:"100H", time:14.26, meet:"Bob Davidson Team Challenge",                    date:"2026-03-20", season:"outdoor"},
+  {athlete:"Mia Stimpson",      event:"100H", time:14.29, meet:"Bob Davidson Team Challenge",                    date:"2026-03-20", season:"outdoor"},
+  {athlete:"Mia Stimpson",      event:"100H", time:14.40, meet:"Phoenix Invitational 2026",                      date:"2026-03-13", season:"outdoor"},
+  {athlete:"Ja'mia Johnson",    event:"100H", time:14.46, meet:"Raleigh Relays",                                 date:"2026-03-26", season:"outdoor"},
+  {athlete:"Ja'mia Johnson",    event:"100H", time:14.47, meet:"Phoenix Invitational 2026",                      date:"2026-03-13", season:"outdoor"},
+  {athlete:"Mia Stimpson",      event:"100H", time:14.49, meet:"Vertklasse 2026",                                date:"2026-04-02", season:"outdoor"},
+  {athlete:"Olivia Waymer",     event:"100H", time:14.85, meet:"Bob Davidson Team Challenge",                    date:"2026-03-20", season:"outdoor"},
+  {athlete:"Olivia Waymer",     event:"100H", time:14.98, meet:"Raleigh Relays",                                 date:"2026-03-26", season:"outdoor"},
+  {athlete:"Olivia Waymer",     event:"100H", time:16.36, meet:"Phoenix Invitational 2026",                      date:"2026-03-13", season:"outdoor"},
+  // 100 Meters
+  {athlete:"Amelie Meier",      event:"100m", time:11.92, meet:"Raleigh Relays",                                 date:"2026-03-26", season:"outdoor"},
+  {athlete:"Teri Pridgen",      event:"100m", time:12.02, meet:"Raleigh Relays",                                 date:"2026-03-26", season:"outdoor"},
+  {athlete:"Amelie Meier",      event:"100m", time:12.12, meet:"Bob Davidson Team Challenge",                    date:"2026-03-20", season:"outdoor"},
+  {athlete:"Mary Sollars",      event:"100m", time:12.28, meet:"Duke Invitational",                              date:"2026-04-10", season:"outdoor"},
+  {athlete:"Teri Pridgen",      event:"100m", time:12.66, meet:"Phoenix Invitational 2026",                      date:"2026-03-13", season:"outdoor"},
+  {athlete:"Amelie Meier",      event:"100m", time:12.78, meet:"Phoenix Invitational 2026",                      date:"2026-03-13", season:"outdoor"},
+  // 200 Meters
+  {athlete:"Amelie Meier",      event:"200m", time:24.58, meet:"Vertklasse 2026",                                date:"2026-04-02", season:"outdoor"},
+  {athlete:"Amelie Meier",      event:"200m", time:24.65, meet:"Phoenix Invitational 2026",                      date:"2026-03-13", season:"outdoor"},
+  {athlete:"Amelie Meier",      event:"200m", time:24.67, meet:"Bob Davidson Team Challenge",                    date:"2026-03-20", season:"outdoor"},
+  {athlete:"Mary Sollars",      event:"200m", time:24.72, meet:"Duke Invitational",                              date:"2026-04-10", season:"outdoor"},
+  {athlete:"Mary Sollars",      event:"200m", time:24.87, meet:"Vertklasse 2026",                                date:"2026-04-02", season:"outdoor"},
+  {athlete:"Mary Sollars",      event:"200m", time:24.96, meet:"Bob Davidson Team Challenge",                    date:"2026-03-20", season:"outdoor"},
+  {athlete:"Teri Pridgen",      event:"200m", time:24.98, meet:"Phoenix Invitational 2026",                      date:"2026-03-13", season:"outdoor"},
+  {athlete:"Amelie Meier",      event:"200m", time:25.04, meet:"Raleigh Relays",                                 date:"2026-03-26", season:"outdoor"},
+  {athlete:"Mary Sollars",      event:"200m", time:25.10, meet:"Phoenix Invitational 2026",                      date:"2026-03-13", season:"outdoor"},
+  {athlete:"Teri Pridgen",      event:"200m", time:25.28, meet:"Raleigh Relays",                                 date:"2026-03-26", season:"outdoor"},
+  {athlete:"Mary Sollars",      event:"200m", time:25.36, meet:"Raleigh Relays",                                 date:"2026-03-26", season:"outdoor"},
+  // 400 Hurdles
+  {athlete:"Duna Vinals",       event:"400H", time:58.52,  meet:"Vertklasse 2026",             date:"2026-04-02", season:"outdoor"},
+  {athlete:"Duna Vinals",       event:"400H", time:60.73,  meet:"Raleigh Relays",              date:"2026-03-26", season:"outdoor"},
+  {athlete:"Duna Vinals",       event:"400H", time:60.78,  meet:"Phoenix Invitational 2026",   date:"2026-03-13", season:"outdoor"},
+  {athlete:"Olivia Waymer",     event:"400H", time:69.65,  meet:"Bob Davidson Team Challenge", date:"2026-03-20", season:"outdoor"},
+  {athlete:"Olivia Waymer",     event:"400H", time:91.01,  meet:"Raleigh Relays",              date:"2026-03-26", season:"outdoor"},
+  // 400 Meters
+  {athlete:"Duna Vinals",       event:"400m", time:55.57,  meet:"Duke Invitational",           date:"2026-04-10", season:"outdoor"},
+  {athlete:"Duna Vinals",       event:"400m", time:55.61,  meet:"Bob Davidson Team Challenge", date:"2026-03-20", season:"outdoor"},
+  {athlete:"Teri Pridgen",      event:"400m", time:56.01,  meet:"Bob Davidson Team Challenge", date:"2026-03-20", season:"outdoor"},
+  {athlete:"Mary Sollars",      event:"400m", time:56.81,  meet:"Raleigh Relays",              date:"2026-03-26", season:"outdoor"},
+  {athlete:"Teri Pridgen",      event:"400m", time:57.52,  meet:"Vertklasse 2026",             date:"2026-04-02", season:"outdoor"},
+  {athlete:"Mary Sollars",      event:"400m", time:57.79,  meet:"Bob Davidson Team Challenge", date:"2026-03-20", season:"outdoor"},
+  {athlete:"Amelie Meier",      event:"400m", time:57.97,  meet:"Duke Invitational",           date:"2026-04-10", season:"outdoor"},
+  {athlete:"Mary Sollars",      event:"400m", time:58.72,  meet:"Phoenix Invitational 2026",   date:"2026-03-13", season:"outdoor"},
+];
+
+// Live data fetched from TFRRS refresh button — in-memory only, repopulated on demand
+let LIVE_DATA = [];
+
+// Returns the roster entry whose name fuzzy-matches the input string
+function matchRosterAthlete(name){
+  if(!name) return null;
+  const n=name.toLowerCase().trim();
+  return ROSTER.find(r=>{
+    const rn=r.name.toLowerCase();
+    // exact match
+    if(rn===n) return true;
+    // last name match
+    const last=rn.split(' ').pop();
+    if(n.includes(last)) return true;
+    // first name match
+    const first=rn.split(' ')[0];
+    if(n.includes(first)) return true;
+    return false;
+  })||null;
+}
+
+// ── Tab switching ── defined early in <head> to avoid ReferenceError on onclick
+
+// ── Status bar helper ──────────────────────────────────
+function showStatus(id, msg, isError){
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.style.display='block';
+  el.style.borderLeftColor=isError?'#ff4455':'var(--gold)';
+  el.style.background=isError?'rgba(255,68,85,0.1)':'rgba(115,0,10,0.2)';
+  el.innerHTML=msg;
+}
+
+// ── Drag & drop wiring ─────────────────────────────────
+['uploadZone','speedUploadZone'].forEach(id=>{
+  const z=document.getElementById(id); if(!z)return;
+  z.addEventListener('dragover',e=>{e.preventDefault();z.classList.add('drag-over');});
+  z.addEventListener('dragleave',()=>z.classList.remove('drag-over'));
+  z.addEventListener('drop',e=>{
+    e.preventDefault();z.classList.remove('drag-over');
+    const f=e.dataTransfer.files[0]; if(!f)return;
+    if(id==='uploadZone') routeFile(f,'volume');
+    else routeFile(f,'speed');
+  });
+});
+
+function handleExcelUpload(e){ routeFile(e.target.files[0],'volume'); e.target.value=''; }
+function handleSpeedUpload(e){ routeFile(e.target.files[0],'speed');  e.target.value=''; }
+
+// ── Universal file router ──────────────────────────────
+// Accepts .csv, .xlsx, .xls for volume and speed tabs
+function routeFile(file, type){
+  if(!file) return;
+  const name=file.name.toLowerCase();
+  const isCSV=name.endsWith('.csv');
+  const isXLS=name.endsWith('.xlsx')||name.endsWith('.xls');
+
+  if(!isCSV && !isXLS){
+    const sid=type==='volume'?'volumeStatus':'speedStatus';
+    showStatus(sid,`&#10060; Unsupported file type: <strong>${file.name}</strong>. Please use .xlsx, .xls, or .csv`,true);
+    return;
+  }
+
+  const reader=new FileReader();
+
+  if(isCSV){
+    reader.onload=e=>{
+      const raw=parseCSVtoRows(e.target.result);
+      dispatchRows(raw, type, file.name);
+    };
+    reader.readAsText(file);
+  } else {
+    reader.onload=e=>{
+      try{
+        const wb=XLSX.read(e.target.result,{type:'array'});
+        let raw=[];
+        for(const sheetName of wb.SheetNames){
+          const ws=wb.Sheets[sheetName];
+          const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
+          if(rows.length>0){ raw=rows; break; }
+        }
+        dispatchRows(raw, type, file.name);
+      }catch(err){
+        const sid=type==='volume'?'volumeStatus':'speedStatus';
+        showStatus(sid,`&#10060; Could not read file: ${err.message}`,true);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+// ── CSV parser ─────────────────────────────────────────
+function parseCSVtoRows(text){
+  const lines=text.trim().split(/\r?\n/);
+  if(lines.length<2) return [];
+  // Detect delimiter: comma or tab
+  const delim=lines[0].includes('\t')?'\t':',';
+  const headers=lines[0].split(delim).map(h=>h.trim().replace(/^"|"$/g,''));
+  return lines.slice(1).map(line=>{
+    const vals=line.split(delim);
+    const obj={};
+    headers.forEach((h,i)=>{ obj[h]=(vals[i]||'').trim().replace(/^"|"$/g,''); });
+    return obj;
+  }).filter(r=>Object.values(r).some(v=>v!==''));
+}
+
+// ── Route parsed rows to the right processor ──────────
+function dispatchRows(raw, type, filename){
+  if(!raw||raw.length===0){
+    const sid=type==='volume'?'volumeStatus':'speedStatus';
+    showStatus(sid,`&#10060; No data rows found in <strong>${filename}</strong>. Check that the file has a header row and data beneath it.`,true);
+    return;
+  }
+  if(type==='volume') processVolumeData(raw, filename);
+  else processSpeedData(raw, filename);
+}
+
+// ── Fuzzy column finder ────────────────────────────────
+// Searches all column headers for any keyword match (case-insensitive)
+function findCol(row, ...keywords){
+  const keys=Object.keys(row);
+  for(const kw of keywords){
+    const hit=keys.find(k=>k.toLowerCase().replace(/[\s_\-\.]/g,'').includes(kw.toLowerCase().replace(/[\s_\-\.]/g,'')));
+    if(hit && row[hit]!==undefined && row[hit]!=='') return row[hit];
+    // also try partial
+    const partial=keys.find(k=>k.toLowerCase().includes(kw.toLowerCase()));
+    if(partial && row[partial]!==undefined && row[partial]!=='') return row[partial];
+  }
+  return '';
+}
+
+function findColName(row, ...keywords){
+  const keys=Object.keys(row);
+  for(const kw of keywords){
+    const hit=keys.find(k=>k.toLowerCase().replace(/[\s_\-\.]/g,'').includes(kw.toLowerCase().replace(/[\s_\-\.]/g,'')));
+    if(hit) return hit;
+    const partial=keys.find(k=>k.toLowerCase().includes(kw.toLowerCase()));
+    if(partial) return partial;
+  }
+  return null;
+}
+
+// ── Parse date value (handles Excel serial, strings) ──
+function parseDate(val){
+  if(!val) return null;
+  if(typeof val==='number'){ return new Date((val-25569)*86400*1000); }
+  const d=new Date(val);
+  return isNaN(d)?null:d;
+}
+
+// ══════════════════════════════════════
+// VOLUME PROCESSING
+// ══════════════════════════════════════
+const GROUP_MAP={
+  'shortsprints':'Short Sprints','ss':'Short Sprints','sprint short':'Short Sprints',
+  'shorthurdles':'Short Hurdles','sh':'Short Hurdles','hurdle short':'Short Hurdles',
+  'longhurdles':'Long Hurdles','lh':'Long Hurdles','hurdle long':'Long Hurdles',
+  'longsprints':'Long Sprints','ls':'Long Sprints','sprint long':'Long Sprints'
+};
+
+function normalizeGroup(raw){
+  if(!raw) return null;
+  const s=raw.toString().toLowerCase().replace(/[\s_\-]/g,'');
+  // exact key match first
+  if(GROUP_MAP[s]) return GROUP_MAP[s];
+  // substring matches
+  if(s.includes('shortspring')||s.includes('shortsp')||(s.includes('short')&&s.includes('sprint'))) return 'Short Sprints';
+  if(s.includes('shorth')||(s.includes('short')&&s.includes('hurdl'))) return 'Short Hurdles';
+  if(s.includes('longh')||(s.includes('long')&&s.includes('hurdl'))) return 'Long Hurdles';
+  if(s.includes('longsp')||(s.includes('long')&&s.includes('sprint'))) return 'Long Sprints';
+  return raw; // keep original so at least something shows
+}
+
+function processVolumeData(raw, filename){
+  if(!raw || !raw.length){ buildWeeks(); renderVolume(); return; }
+  const sample=raw[0];
+  const cols=Object.keys(sample);
+
+  const dateCol  =findColName(sample,'date','day','wk','week');
+  const athCol   =findColName(sample,'athlete','name','player','athlete');
+  const groupCol =findColName(sample,'group','grp','category','squad','event group','type');
+  const eventCol =findColName(sample,'event','exercise','drill','activity');
+  const volCol   =findColName(sample,'volume','vol','reps','sets','total','count','load','meters','distance','work');
+
+  const detectedMsg=`&#9989; Loaded <strong>${filename}</strong> — ${raw.length} rows detected. `+
+    `Columns mapped: `+
+    `Date→<em>${dateCol||'not found'}</em>, `+
+    `Group→<em>${groupCol||'not found'}</em>, `+
+    `Volume→<em>${volCol||'not found'}</em>`;
+
+  const parsed=raw.map(r=>{
+    const dv=dateCol?r[dateCol]:'';
+    const date=parseDate(dv)||new Date();
+    const grpRaw=groupCol?r[groupCol]:'';
+    const volRaw=volCol?r[volCol]:findCol(r,'volume','vol','reps','sets','count','load','distance','meters');
+    return{
+      date,
+      athlete: athCol?r[athCol]:(findCol(r,'athlete','name','player')||'Team'),
+      group:   normalizeGroup(grpRaw),
+      event:   eventCol?r[eventCol]:'',
+      volume:  parseFloat(String(volRaw).replace(/[^0-9.\-]/g,''))||0
+    };
+  }).filter(r=>r.volume>0);
+
+  if(!parsed.length){
+    showStatus('volumeStatus',
+      `&#10060; Parsed ${raw.length} rows but found no valid volume data. `+
+      `Available columns: <em>${cols.join(', ')}</em>. `+
+      `Make sure your volume column contains numbers and the group column has recognizable group names.`,true);
+    volumeData=generateDemoVolumeData();
+    buildWeeks(); renderVolume(); return;
+  }
+
+  volumeData = parsed;
+  showStatus('volumeStatus', detectedMsg + ` — <strong>${volumeData.length} valid entries loaded.</strong> Saving to Supabase…`);
+
+  // Save to Supabase
+  const rows = volumeData.map(r=>({
+    athlete:      r.athlete,
+    group_name:   r.group,
+    event:        r.event,
+    session_date: r.date.toISOString().split('T')[0],
+    volume:       r.volume,
+    filename
+  }));
+  supaInsert('volume_sessions', rows)
+    .then(()=> showStatus('volumeStatus', detectedMsg + ` — <strong>${volumeData.length} entries saved to Supabase ✓</strong>`))
+    .catch(e => showStatus('volumeStatus', detectedMsg + ` — <strong>${volumeData.length} loaded</strong> (Supabase error: ${e.message})`));
+
+  buildWeeks();
+  renderVolume();
+}
+
+async function loadVolumeFromSupabase(){
+  showStatus('volumeStatus','⟳ Loading volume data from Supabase…');
+  try {
+    const rows = await supaGet('volume_sessions');
+    if(!rows.length){ showStatus('volumeStatus','No volume data in Supabase yet. Upload a file to get started.'); return; }
+    volumeData = rows.map(r=>({
+      date:    new Date(r.session_date),
+      athlete: r.athlete,
+      group:   r.group_name,
+      event:   r.event||'',
+      volume:  parseFloat(r.volume)||0
+    })).filter(r=>r.volume>0);
+    const latest = rows.reduce((a,b)=>a.uploaded_at>b.uploaded_at?a:b);
+    const ts = new Date(latest.uploaded_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+    showStatus('volumeStatus',`✓ Loaded ${volumeData.length} volume entries from Supabase · Last upload: ${ts}`);
+    buildWeeks(); renderVolume();
+  } catch(e){
+    showStatus('volumeStatus',`⚠ Supabase load failed: ${e.message}. Upload a file manually.`);
+  }
+}
+
+function generateDemoVolumeData(){
+  const data=[],start=new Date('2024-01-08');
+  const base={'Short Sprints':800,'Short Hurdles':600,'Long Hurdles':500,'Long Sprints':700};
+  GROUPS.forEach(g=>{
+    for(let w=0;w<12;w++) for(let d=0;d<5;d++){
+      const dt=new Date(start); dt.setDate(dt.getDate()+w*7+d);
+      data.push({date:dt,athlete:'Team',group:g,event:g,volume:Math.round(base[g]*(0.8+Math.random()*0.6)+w*20)});
+    }
+  });
+  return data;
+}
+
+function buildWeeks(){
+  const dates=volumeData.map(r=>r.date).sort((a,b)=>a-b);
+  if(!dates.length)return;
+  const start=new Date(dates[0]); start.setDate(start.getDate()-start.getDay());
+  allWeeks=[];let cur=new Date(start);
+  while(cur<=dates[dates.length-1]){
+    const wS=new Date(cur),wE=new Date(cur); wE.setDate(wE.getDate()+6);
+    const rows=volumeData.filter(r=>r.date>=wS&&r.date<=wE);
+    if(rows.length) allWeeks.push({start:wS,end:wE,rows});
+    cur.setDate(cur.getDate()+7);
+  }
+  currentWeek=allWeeks.length-1;
+}
+
+function renderVolume(){
+  document.getElementById('volumeEmpty').style.display='none';
+  document.getElementById('volumeContent').style.display='block';
+  renderWeekStats();renderDailyChart();renderWeeklyTrendChart();renderChangeChart();renderWeeklyTable();
+}
+
+function getWeekVolumes(wi){
+  if(!allWeeks[wi])return{};
+  const vols={};
+  GROUPS.forEach(g=>{vols[g]=allWeeks[wi].rows.filter(r=>r.group===g).reduce((s,r)=>s+r.volume,0);});
+  return vols;
+}
+
+function renderWeekStats(){
+  const wk=allWeeks[currentWeek]; if(!wk)return;
+  const vols=getWeekVolumes(currentWeek),pvols=currentWeek>0?getWeekVolumes(currentWeek-1):null;
+  const fmt=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  document.getElementById('weekLabel').textContent=`Week ${currentWeek+1}`;
+  document.getElementById('weekDateRange').textContent=`${fmt(wk.start)} - ${fmt(wk.end)}`;
+  const cls=['g1','g2','g3','g4'];
+  document.getElementById('weeklyStats').innerHTML=GROUPS.map((g,i)=>{
+    const v=vols[g]||0,pv=pvols?(pvols[g]||0):0;
+    const pct=pv>0?((v-pv)/pv*100).toFixed(1):null;
+    const dir=pct===null?'neutral':pct>0?'up':'down';
+    const arr=pct===null?'':pct>0?'&#9650;':'&#9660;';
+    return `<div class="stat-card ${cls[i]}">
+      <div class="stat-label">${g}</div><div class="stat-value">${v.toLocaleString()}</div>
+      <div class="stat-sub">Avg/day: ${(v/5).toFixed(0)}</div>
+      ${pct!==null?`<div class="stat-change ${dir}">${arr} ${Math.abs(pct)}% vs last week</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function renderDailyChart(){
+  const wk=allWeeks[currentWeek]; if(!wk)return;
+  const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],dayD={};
+  GROUPS.forEach(g=>{dayD[g]=new Array(7).fill(0);});
+  wk.rows.forEach(r=>{const d=r.date.getDay(),idx=d===0?6:d-1; if(dayD[r.group])dayD[r.group][idx]+=r.volume;});
+  destroyChart('dailyVolumeChart');
+  chartInstances['dailyVolumeChart']=new Chart(document.getElementById('dailyVolumeChart'),{
+    type:'bar',data:{labels:days,datasets:GROUPS.map((g,i)=>({label:g,data:dayD[g],
+      backgroundColor:GROUP_COLORS[i]+'99',borderColor:GROUP_COLORS[i],borderWidth:1,borderRadius:3}))},
+    options:chartOpts('bar')
+  });
+}
+
+function renderWeeklyTrendChart(){
+  const labels=allWeeks.map((_,i)=>`Wk ${i+1}`);
+  destroyChart('weeklyTrendChart');
+  chartInstances['weeklyTrendChart']=new Chart(document.getElementById('weeklyTrendChart'),{
+    type:'line',data:{labels,datasets:GROUPS.map((g,i)=>({label:g,
+      data:allWeeks.map((_,wi)=>getWeekVolumes(wi)[g]||0),
+      borderColor:GROUP_COLORS[i],backgroundColor:GROUP_COLORS[i]+'22',
+      borderWidth:2,pointRadius:3,tension:0.3,fill:false}))},
+    options:chartOpts('line')
+  });
+}
+
+function renderChangeChart(){
+  if(allWeeks.length<2)return;
+  const labels=allWeeks.slice(1).map((_,i)=>`Wk ${i+2}`);
+  destroyChart('changeChart');
+  chartInstances['changeChart']=new Chart(document.getElementById('changeChart'),{
+    type:'bar',data:{labels,datasets:GROUPS.map((g,i)=>({label:g,
+      data:allWeeks.slice(1).map((_,wi)=>{
+        const c=getWeekVolumes(wi+1)[g]||0,p=getWeekVolumes(wi)[g]||0;
+        return p>0?parseFloat(((c-p)/p*100).toFixed(1)):0;
+      }),
+      backgroundColor:GROUP_COLORS[i]+'99',borderColor:GROUP_COLORS[i],borderWidth:1,borderRadius:3}))},
+    options:{...chartOpts('bar'),plugins:{...chartOpts('bar').plugins,
+      tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.raw>0?'+':''}${ctx.raw}%`}}}}
+  });
+}
+
+function renderWeeklyTable(){
+  document.getElementById('weeklyTableBody').innerHTML=allWeeks.map((w,i)=>{
+    const v=getWeekVolumes(i),pv=i>0?getWeekVolumes(i-1):null;
+    const total=GROUPS.reduce((s,g)=>s+(v[g]||0),0),pt=pv?GROUPS.reduce((s,g)=>s+(pv[g]||0),0):0;
+    const pct=pt>0?((total-pt)/pt*100).toFixed(1):null;
+    const badge=pct===null?'':pct>0?`<span class="badge up">+${pct}%</span>`:`<span class="badge down">${pct}%</span>`;
+    return `<tr><td>Week ${i+1}</td>${GROUPS.map(g=>`<td>${(v[g]||0).toLocaleString()}</td>`).join('')}<td><strong>${total.toLocaleString()}</strong></td><td>${badge}</td></tr>`;
+  }).join('');
+}
+
+function prevWeek(){if(currentWeek>0){currentWeek--;renderVolume();}}
+function nextWeek(){if(currentWeek<allWeeks.length-1){currentWeek++;renderVolume();}}
+
+// ══════════════════════════════════════
+// PERFORMANCE — TFRRS DATA ENGINE
+// ══════════════════════════════════════
+
+// Returns active athlete names (preset + any extras queued by coach)
+function activeAthletes(){
+  return [...PRESET_ROSTER, ...EXTRA_ATHLETES];
+}
+
+// Normalize TFRRS name to match ROSTER entries
+function normName(n){ return n.trim().replace(/\s+/g,' '); }
+
+// Check if a TFRRS row's athlete is in the active list
+function isActiveAthlete(name){
+  const n = normName(name).toLowerCase();
+  return activeAthletes().some(a => {
+    const an = a.toLowerCase();
+    if(n === an) return true;
+    const last = an.split(' ').slice(-1)[0];
+    const first = an.split(' ')[0];
+    return n.includes(last) || n.includes(first);
+  });
+}
+
+function loadTFRRSData(){
+  // Merge indoor baseline + outdoor actuals + any live-fetched data
+  const combined = [...TFRRS_DATA, ...OUTDOOR_DATA, ...LIVE_DATA];
+  const seen = new Set();
+  const deduped = combined.filter(r => {
+    const key = `${r.athlete}|${r.event}|${r.time}|${r.date}`;
+    if(seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+
+  perfData = deduped
+    .filter(r => isActiveAthlete(r.athlete))
+    .map(r => ({
+      athlete: normName(r.athlete),
+      event:   r.event,
+      time:    r.time,
+      meet:    r.meet || '',
+      date:    new Date(r.date),
+      season:  r.season
+    }));
+
+  const syncedAt = window._tfrrsLastSync || '';
+  const outdoorCount = OUTDOOR_DATA.filter(r=>isActiveAthlete(r.athlete)).length;
+  document.getElementById('lastSyncLabel').textContent =
+    (LIVE_DATA.length ? `⟳ Last synced: ${syncedAt} · ` : '') +
+    `${perfData.length} performances · ${outdoorCount} outdoor`;
+
+  renderRosterPills();
+  buildPerfDropdowns();
+  document.getElementById('perfContent').style.display = 'block';
+  updateAthleteView();
+}
+
+// ── TFRRS Live Refresh ─────────────────────────────────
+// Uses Claude API to fetch + parse TFRRS page (bypasses CORS)
+async function refreshTFRRS(){
+  const btn = document.getElementById('refreshBtn');
+  btn.textContent = '⟳ Fetching...';
+  btn.disabled = true;
+  btn.style.opacity = '0.6';
+
+  const INDOOR_URL  = 'https://www.tfrrs.org/all_performances/NC_college_f_Elon.html?list_hnd=5481&season_hnd=705';
+  const OUTDOOR_URL = 'https://www.tfrrs.org/all_performances/NC_college_f_Elon.html?list_hnd=5771&season_hnd=730';
+  const TARGET_EVENTS = ['60m','60H','100m','200m','400m','400H','100H'];
+  const active = activeAthletes();
+
+  const prompt = `Fetch BOTH of these TFRRS URLs and extract ALL track & field performances for these athletes: ${active.join(', ')}.
+
+URL 1 (Indoor 2025-26): ${INDOOR_URL}
+URL 2 (Outdoor 2026): ${OUTDOOR_URL}
+
+Return ONLY a JSON array — no markdown, no explanation, no code fences. Each entry:
+{"athlete":"Full Name","event":"100m","time":11.92,"meet":"Meet Name","date":"2026-03-26","season":"indoor"}
+
+Rules:
+- Only include these events: ${TARGET_EVENTS.join(', ')}
+- Only include athletes from this list (fuzzy match last name): ${active.join(', ')}
+- time is always a number in seconds. For 400m/400H use decimal seconds e.g. 58.52. For 1:00.73 convert to 60.73
+- season field: "indoor" for URL 1, "outdoor" for URL 2
+- date format: YYYY-MM-DD
+- Return every individual performance (not just bests)
+- If you cannot fetch a URL, skip it and return what you can
+- Return [] if nothing found`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 6000,
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    const data = await res.json();
+    const text = (data.content || [])
+      .filter(b => b.type === 'text')
+      .map(b => b.text)
+      .join('\n');
+
+    const match = text.match(/\[[\s\S]*\]/);
+    if(!match) throw new Error('No JSON array found in response');
+
+    const parsed = JSON.parse(match[0]);
+    if(!Array.isArray(parsed)) throw new Error('Response was not an array');
+
+    LIVE_DATA = parsed.filter(r =>
+      r.athlete && r.event && typeof r.time === 'number' && r.time > 0 && r.date
+    );
+
+    const syncedAt = new Date().toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+    try {
+    window._tfrrsLastSync = syncedAt;
+    } catch(e){}
+
+    loadTFRRSData();
+    showToastPerf(`✓ Synced ${LIVE_DATA.length} performances from TFRRS (indoor + outdoor)`, 'success');
+
+  } catch(err) {
+    showToastPerf(`⚠ Refresh failed: ${err.message}. Using cached data.`, 'error');
+    console.error('TFRRS refresh error:', err);
+  } finally {
+    btn.textContent = '⟳ Refresh TFRRS';
+    btn.disabled = false;
+    btn.style.opacity = '1';
+  }
+}
+
+function showToastPerf(msg, type){
+  let t = document.getElementById('perfToast');
+  if(!t){
+    t = document.createElement('div');
+    t.id = 'perfToast';
+    t.style.cssText = 'position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:9999;padding:10px 24px;border-radius:6px;font-family:Barlow Condensed,sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;transition:opacity 0.4s;pointer-events:none';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.background = type==='success' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)';
+  t.style.border = `1px solid ${type==='success'?'rgba(34,197,94,0.5)':'rgba(239,68,68,0.5)'}`;
+  t.style.color = type==='success' ? '#22c55e' : '#ef4444';
+  t.style.opacity = '1';
+  setTimeout(() => t.style.opacity = '0', 3500);
+}
+
+function renderRosterPills(){
+  const active = activeAthletes();
+  const groupColor = {
+    'Short Sprints':'#b59a57','Long Sprints':'#d4956a',
+    'Short Hurdles':'#e8c84a','Long Hurdles':'#ffffff'
+  };
+  document.getElementById('rosterPills').innerHTML = active.map(name => {
+    const r = ROSTER.find(x => x.name === name);
+    const col = r ? (groupColor[r.group] || 'var(--gold)') : 'var(--border-lt)';
+    const isExtra = EXTRA_ATHLETES.includes(name);
+    return `<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px 4px 10px;border-radius:20px;
+      border:1px solid ${col}44;background:${col}18;font-family:'Barlow Condensed',sans-serif;
+      font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${col}">
+      ${name}
+      ${isExtra ? `<span onclick="removeExtraAthlete('${name}')" style="cursor:pointer;color:${col};opacity:0.6;font-size:13px;line-height:1" title="Remove">✕</span>` : ''}
+    </span>`;
+  }).join('');
+}
+
+function removeExtraAthlete(name){
+  EXTRA_ATHLETES = EXTRA_ATHLETES.filter(n => n !== name);
+  loadTFRRSData();
+}
+
+function buildPerfDropdowns(){
+  const groupOrder = ['Short Sprints','Long Sprints','Short Hurdles','Long Hurdles'];
+  let athOptions = '<option value="">All Athletes</option>';
+  groupOrder.forEach(grp => {
+    const grpRoster = ROSTER.filter(r => r.group === grp && activeAthletes().includes(r.name));
+    if(grpRoster.length){
+      athOptions += `<optgroup label="── ${grp} ──">`;
+      athOptions += grpRoster.map(r => `<option value="${r.name}">${r.name}</option>`).join('');
+      athOptions += '</optgroup>';
+    }
+  });
+  // Extra athletes not in ROSTER
+  const notInRoster = EXTRA_ATHLETES.filter(n => !ROSTER.find(r=>r.name===n));
+  if(notInRoster.length){
+    athOptions += '<optgroup label="── Added Athletes ──">';
+    athOptions += notInRoster.map(n=>`<option value="${n}">${n}</option>`).join('');
+    athOptions += '</optgroup>';
+  }
+  document.getElementById('athleteSelect').innerHTML = athOptions;
+
+  const evs = [...new Set(perfData.map(r=>r.event))].sort();
+  document.getElementById('eventSelect').innerHTML = '<option value="">All Events</option>' +
+    evs.map(e=>`<option>${e}</option>`).join('');
+}
+
+// Add Athletes modal
+function openAddAthleteModal(){
+  // Show current extra athletes
+  const el = document.getElementById('addAthList');
+  el.innerHTML = EXTRA_ATHLETES.length
+    ? '<div style="font-size:10px;letter-spacing:1px;color:var(--muted);margin-bottom:8px;font-family:Barlow Condensed,sans-serif;font-weight:700;text-transform:uppercase">Currently Added</div>' +
+      EXTRA_ATHLETES.map(n=>`<div style="font-family:DM Mono,monospace;font-size:12px;color:var(--gold);padding:3px 0">${n}</div>`).join('')
+    : '';
+  document.getElementById('addAthInput').value = '';
+  const modal = document.getElementById('addAthleteModal');
+  modal.style.display = 'flex';
+}
+
+function closeAddAthleteModal(){
+  document.getElementById('addAthleteModal').style.display = 'none';
+}
+
+function applyAddAthletes(){
+  const raw = document.getElementById('addAthInput').value;
+  const names = raw.split('\n').map(n=>n.trim()).filter(Boolean);
+  names.forEach(n => {
+    if(!PRESET_ROSTER.includes(n) && !EXTRA_ATHLETES.includes(n)){
+      EXTRA_ATHLETES.push(n);
+    }
+  });
+  closeAddAthleteModal();
+  loadTFRRSData();
+}
+
+function updateAthleteView(){
+  const selAth=document.getElementById('athleteSelect').value;
+  const selEv =document.getElementById('eventSelect').value;
+
+  // When a roster athlete is selected, pre-filter the event dropdown to their known events
+  const rosterEntry = selAth ? ROSTER.find(r=>r.name===selAth) : null;
+
+  if(rosterEntry){
+    // Update event select to show only this athlete's events
+    const allEvs=[...new Set(perfData.map(r=>r.event))].sort();
+    const presetEvs=rosterEntry.events;
+    let evOpts='<option value="">All Events</option>';
+    const matchedEvs=allEvs.filter(e=>presetEvs.some(p=>e.toLowerCase()===p.toLowerCase()));
+    const otherEvs  =allEvs.filter(e=>!presetEvs.some(p=>e.toLowerCase()===p.toLowerCase()));
+    if(matchedEvs.length){
+      evOpts+='<optgroup label="── Primary Events ──">';
+      evOpts+=matchedEvs.map(e=>`<option${selEv===e?' selected':''}>${e}</option>`).join('');
+      evOpts+='</optgroup>';
+    }
+    if(otherEvs.length){
+      evOpts+='<optgroup label="── Other Events ──">';
+      evOpts+=otherEvs.map(e=>`<option${selEv===e?' selected':''}>${e}</option>`).join('');
+      evOpts+='</optgroup>';
+    }
+    document.getElementById('eventSelect').innerHTML=evOpts;
+
+    // Show roster event chips below the selects
+    renderAthleteChips(rosterEntry, selEv);
+  } else {
+    // Restore full event list
+    const allEvs=[...new Set(perfData.map(r=>r.event))].sort();
+    document.getElementById('eventSelect').innerHTML='<option value="">All Events</option>'+allEvs.map(e=>`<option${selEv===e?' selected':''}>${e}</option>`).join('');
+    document.getElementById('athleteChips').innerHTML='';
+  }
+
+  // --- Filter data ---
+  // For roster athletes, match by fuzzy name against the data
+  let f=perfData;
+  if(selAth){
+    // Try exact match first, then fuzzy via roster
+    const exact=perfData.filter(r=>r.athlete===selAth);
+    if(exact.length){ f=exact; }
+    else {
+      // Fuzzy: find data rows whose athlete name fuzzy-matches the roster entry
+      f=perfData.filter(r=>matchRosterAthlete(r.athlete)?.name===selAth);
+    }
+  }
+  if(selEv) f=f.filter(r=>r.event.toLowerCase()===selEv.toLowerCase());
+  f.sort((a,b)=>a.date-b.date);
+
+  const byEv={}; f.forEach(r=>{if(!byEv[r.event])byEv[r.event]=[];byEv[r.event].push(r);});
+  const evC=['#b59a57','#e8c84a','#ffffff','#d4956a','#c97878','#8fbe8f'];
+  const datasets=Object.entries(byEv).map(([e,rows],i)=>({label:e,
+    data:rows.map(r=>({x:r.date.toLocaleDateString(),y:r.time})),
+    borderColor:evC[i%evC.length],backgroundColor:evC[i%evC.length]+'33',borderWidth:2,pointRadius:4,tension:0.3}));
+  destroyChart('perfTrendChart');
+  chartInstances['perfTrendChart']=new Chart(document.getElementById('perfTrendChart'),{type:'line',data:{datasets},
+    options:{...chartOpts('line'),scales:{
+      x:{type:'category',ticks:{color:'#9a7060',font:{family:'DM Mono',size:10}},grid:{color:'rgba(115,0,10,0.4)'}},
+      y:{reverse:true,ticks:{color:'#9a7060',font:{family:'DM Mono',size:10}},grid:{color:'rgba(115,0,10,0.4)'}}}}});
+  const ind=f.filter(r=>r.season.includes('indoor')),out=f.filter(r=>!r.season.includes('indoor'));
+  destroyChart('seasonChart');
+  chartInstances['seasonChart']=new Chart(document.getElementById('seasonChart'),{type:'scatter',
+    data:{datasets:[
+      {label:'Indoor',data:ind.map(r=>({x:r.date.toLocaleDateString(),y:r.time})),backgroundColor:'#b59a5799',borderColor:'#b59a57',pointRadius:6},
+      {label:'Outdoor',data:out.map(r=>({x:r.date.toLocaleDateString(),y:r.time})),backgroundColor:'#ffffff99',borderColor:'#ffffff',pointRadius:6}]},
+    options:{...chartOpts('scatter'),scales:{
+      x:{type:'category',ticks:{color:'#9a7060',font:{family:'DM Mono',size:10}},grid:{color:'rgba(115,0,10,0.4)'}},
+      y:{reverse:true,ticks:{color:'#9a7060',font:{family:'DM Mono',size:10}},grid:{color:'rgba(115,0,10,0.4)'}}}}});
+  const prs={}; f.forEach(r=>{const k=r.athlete+r.event;if(!prs[k]||r.time<prs[k])prs[k]=r.time;});
+  const fSorted=[...f].reverse();
+  document.getElementById('perfTableBody').innerHTML=fSorted.map(r=>{
+    const diff=(r.time-prs[r.athlete+r.event]).toFixed(2);
+    const badge=+diff===0?'<span class="badge up">PR</span>':`<span class="badge neutral">+${diff}s</span>`;
+    const sb=r.season==='indoor'?`<span class="badge neutral" style="color:var(--gold);background:rgba(181,154,87,0.1)">INDOOR</span>`:`<span class="badge up">OUTDOOR</span>`;
+    const meetShort = r.meet ? r.meet.replace('2026 ','').replace('2025 ','') : '—';
+    return `<tr><td>${r.athlete}</td><td>${r.event}</td><td><strong>${r.time}</strong></td><td style="font-size:10px;color:var(--muted)">${meetShort}</td><td>${r.date.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})}</td><td>${sb}</td><td>${badge}</td></tr>`;
+  }).join('');
+}
+
+function renderAthleteChips(rosterEntry, activeEvent){
+  const allEvs=[...new Set(perfData.map(r=>r.event))].sort();
+  const groupColor = {
+    'Short Sprints': 'var(--g1)',
+    'Long Sprints':  'var(--g4)',
+    'Short Hurdles': 'var(--g2)',
+    'Long Hurdles':  'var(--g3)',
+  }[rosterEntry.group] || 'var(--gold)';
+  const groupTextColor = rosterEntry.group === 'Long Hurdles' ? 'var(--maroon)' : 'var(--maroon)';
+
+  const groupBadge = `<span style="padding:4px 14px;border-radius:20px;font-size:11px;font-weight:700;
+    letter-spacing:2px;text-transform:uppercase;font-family:'Barlow Condensed',sans-serif;
+    background:${groupColor};color:${groupTextColor};margin-right:4px">${rosterEntry.group}</span>`;
+
+  const chips = rosterEntry.events.map(ev=>{
+    const hasData=allEvs.some(e=>e.toLowerCase()===ev.toLowerCase());
+    const isActive=activeEvent&&activeEvent.toLowerCase()===ev.toLowerCase();
+    return `<button class="event-chip${isActive?' chip-active':''}" onclick="selectChipEvent('${ev}')" `+
+      `style="opacity:${hasData?1:0.45};cursor:${hasData?'pointer':'default'}">${ev}</button>`;
+  }).join('');
+
+  document.getElementById('athleteChips').innerHTML = groupBadge + chips;
+}
+
+function selectChipEvent(ev){
+  const sel=document.getElementById('eventSelect');
+  // Toggle: if already selected, deselect
+  const current=sel.value;
+  sel.value=(current.toLowerCase()===ev.toLowerCase())?'':ev;
+  updateAthleteView();
+}
+
+function generatePredictions(){
+  const af=document.getElementById('athleteSelect').value;
+  const athletes=af?[af]:[...new Set(perfData.map(r=>r.athlete))].slice(0,8);
+
+  const preds=athletes.map(a=>{
+    const rows=perfData.filter(r=>r.athlete===a);
+    const indoor = r => r.season==='indoor';
+    const outdoor= r => r.season==='outdoor';
+
+    // ── Indoor actuals (basis for predictions) ─────────
+    const i60   = rows.filter(r=>indoor(r)&&r.event==='60m');
+    const i60h  = rows.filter(r=>indoor(r)&&r.event==='60H');
+    const i200  = rows.filter(r=>indoor(r)&&r.event==='200m');
+    const i400  = rows.filter(r=>indoor(r)&&r.event==='400m');
+    const i400h = rows.filter(r=>indoor(r)&&r.event==='400H');
+    const i100  = rows.filter(r=>indoor(r)&&r.event==='100m');
+    const i100h = rows.filter(r=>indoor(r)&&r.event==='100H');
+
+    // ── Outdoor actuals (real results to compare against) ─
+    const o100  = rows.filter(r=>outdoor(r)&&r.event==='100m');
+    const o200  = rows.filter(r=>outdoor(r)&&r.event==='200m');
+    const o400  = rows.filter(r=>outdoor(r)&&r.event==='400m');
+    const o100h = rows.filter(r=>outdoor(r)&&r.event==='100H');
+    const o400h = rows.filter(r=>outdoor(r)&&r.event==='400H');
+
+    const best = arr => arr.length ? Math.min(...arr.map(r=>r.time)) : null;
+
+    const best60   = best(i60);
+    const best60h  = best(i60h);
+    const bestI200 = best(i200);
+    const bestI400 = best(i400);
+    const bestI400h= best(i400h);
+    const bestI100 = best(i100);
+    const bestI100h= best(i100h);
+
+    const bestO100 = best(o100);
+    const bestO200 = best(o200);
+    const bestO400 = best(o400);
+    const bestO100h= best(o100h);
+    const bestO400h= best(o400h);
+
+    // ── Projections (always computed from indoor, for comparison) ──
+    // 100m projected from indoor 60m
+    const proj100 = best60 ? +(best60*1.555+0.1).toFixed(2)
+      : bestI100 ? +(bestI100*0.998).toFixed(2) : null;
+    const proj100src = best60 ? 'Indoor 60m × 1.555 + 0.1'
+      : bestI100 ? 'Indoor 100m × 0.998' : null;
+
+    // 200m: from indoor 200m, or chain from proj100
+    const proj200 = bestI200 ? +(bestI200*0.984).toFixed(2)
+      : proj100 ? +(proj100*2.05).toFixed(2) : null;
+    const proj200src = bestI200 ? 'Indoor 200m × 0.984' : 'Indoor 60m chain';
+
+    // 400m: from indoor 400m, or chain from proj200
+    const proj400 = bestI400 ? +(bestI400*0.988).toFixed(2)
+      : proj200 ? +(proj200*2.1).toFixed(2) : null;
+    const proj400src = bestI400 ? 'Indoor 400m × 0.988' : '200m chain × 2.1';
+
+    // 100H: from indoor 60H or indoor 100H
+    const proj100h = best60h ? +(best60h*1.545+0.3).toFixed(2)
+      : bestI100h ? +(bestI100h*0.998).toFixed(2) : null;
+    const proj100hSrc = best60h ? 'Indoor 60H × 1.545 + 0.3'
+      : bestI100h ? 'Indoor 100H × 0.998' : null;
+
+    // 400H: from indoor 400H or chain from 100H proj
+    const proj400h = bestI400h ? +(bestI400h*0.988).toFixed(2)
+      : proj100h ? +(proj100h*4.15).toFixed(2) : null;
+    const proj400hSrc = bestI400h ? 'Indoor 400H × 0.988' : '100H chain × 4.15';
+
+    // ── Delta: actual outdoor vs projection ────────────
+    const delta = (actual, proj) => (actual!=null&&proj!=null)
+      ? +(actual-proj).toFixed(2) : null;
+
+    const d100  = delta(bestO100,  proj100);
+    const d200  = delta(bestO200,  proj200);
+    const d400  = delta(bestO400,  proj400);
+    const d100h = delta(bestO100h, proj100h);
+    const d400h = delta(bestO400h, proj400h);
+
+    // ── Confidence ─────────────────────────────────────
+    const sprintConf = i60.length>=3||i200.length>=3 ? 'HIGH'
+      : i60.length>=1||i200.length>=1||i400.length>=1 ? 'MED' : 'LOW';
+    const hurdleConf = i60h.length>=3||i100h.length>=2 ? 'HIGH'
+      : i60h.length>=1||i100h.length>=1 ? 'MED' : 'LOW';
+
+    const hasAnything = best60||best60h||bestI200||bestI400||bestO100||bestO200||bestO400||bestO100h||bestO400h;
+    if(!hasAnything) return null;
+
+    return { a,
+      // Indoor sources
+      best60, bestI100, bestI200, bestI400, best60h, bestI100h, bestI400h,
+      // Projections
+      proj100, proj100src, proj200, proj200src, proj400, proj400src,
+      proj100h, proj100hSrc, proj400h, proj400hSrc,
+      // Outdoor actuals
+      bestO100, bestO200, bestO400, bestO100h, bestO400h,
+      // Deltas
+      d100, d200, d400, d100h, d400h,
+      sprintConf, hurdleConf };
+  }).filter(Boolean).filter(p =>
+    p.proj100||p.proj200||p.proj400||p.proj100h||p.proj400h||
+    p.bestO100||p.bestO200||p.bestO400||p.bestO100h||p.bestO400h
+  );
+
+  if(!preds.length){
+    document.getElementById('predictionOutput').innerHTML=`<div class="prediction-card"><div class="pred-title">No Prediction Data</div><p style="color:var(--muted);font-size:12px">Select an athlete with indoor 60m, 200m, 400m, 60H, or 100H times.</p></div>`;
+    return;
+  }
+
+  const confBadge = c => {
+    const col = c==='HIGH'?'#22c55e':c==='MED'?'#e8c84a':'#9a7060';
+    return `<span style="font-size:9px;padding:2px 7px;border-radius:2px;border:1px solid ${col}44;background:${col}18;color:${col};font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:1px;display:inline-block">${c}</span>`;
+  };
+
+  // Small indoor source chip
+  const srcChip = val => val==null ? '' :
+    `<div style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:3px;background:rgba(181,154,87,0.08);border:1px solid rgba(181,154,87,0.2);font-size:9px;color:var(--muted);font-family:'Barlow Condensed',sans-serif;letter-spacing:1px;margin-top:4px">📥 ${val}</div>`;
+
+  // Comparison row: proj vs outdoor actual with delta pill
+  const compRow = (label, proj, projSrc, actual, delta, conf) => {
+    if(proj==null && actual==null) return '';
+    const deltaStr = delta!=null
+      ? `<span style="padding:2px 6px;border-radius:3px;font-size:10px;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:1px;background:${delta<=0?'rgba(34,197,94,0.12)':'rgba(255,68,85,0.12)'};color:${delta<=0?'#22c55e':'var(--danger)'};border:1px solid ${delta<=0?'rgba(34,197,94,0.3)':'rgba(255,68,85,0.3)'}">${delta>0?'+':''}${delta}s ${delta<=0?'↓ faster':'↑ slower'}</span>`
+      : '';
+    return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:8px">
+      <div style="font-size:10px;letter-spacing:2px;color:var(--gold);font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;margin-bottom:8px">${label}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start">
+        <div>
+          <div style="font-size:9px;letter-spacing:1px;color:var(--muted);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;margin-bottom:3px">Projection</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;line-height:1;color:#fff">${proj!=null?proj:'—'}</div>
+          ${proj!=null?srcChip(projSrc):''}
+          ${proj!=null&&conf?'<div style="margin-top:5px">'+confBadge(conf)+'</div>':''}
+        </div>
+        <div>
+          <div style="font-size:9px;letter-spacing:1px;color:${actual!=null?'#22c55e':'var(--muted)'};font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;margin-bottom:3px">Outdoor Actual</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;line-height:1;color:${actual!=null?'#22c55e':'var(--border-lt)'}">${actual!=null?actual:'No result yet'}</div>
+          ${deltaStr?'<div style="margin-top:6px">'+deltaStr+'</div>':''}
+        </div>
+      </div>
+    </div>`;
+  };
+
+  // Indoor-only source row (no projection column)
+  const indoorRow = (label, val) => val==null ? '' :
+    `<div style="display:inline-flex;flex-direction:column;align-items:flex-start;background:rgba(181,154,87,0.06);border:1px solid rgba(181,154,87,0.15);border-radius:5px;padding:8px 12px;margin:3px">
+      <div style="font-size:9px;letter-spacing:1px;color:var(--muted);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase">${label}</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;line-height:1.1;color:var(--gold)">${val}</div>
+    </div>`;
+
+  document.getElementById('predictionOutput').innerHTML=`<div class="prediction-card">
+    <div class="pred-title">Indoor → Outdoor Predictions</div>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:16px;line-height:1.6">
+      Each event shows the <span style="color:#fff">indoor-derived projection</span> alongside the <span style="color:#22c55e">actual outdoor result</span> where available. Delta shows how the athlete performed vs model.
+    </p>
+    ${preds.map(p=>`
+      <div style="margin-bottom:24px;padding-bottom:24px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;color:#fff">${p.a}</span>
+          ${(p.best60||p.bestI200||p.bestI400)?confBadge(p.sprintConf)+' <span style="font-size:9px;color:var(--muted);letter-spacing:1px">SPRINT</span>':''}
+          ${(p.best60h||p.bestI100h)?confBadge(p.hurdleConf)+' <span style="font-size:9px;color:var(--muted);letter-spacing:1px">HURDLE</span>':''}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px">
+          ${indoorRow('60m', p.best60)}
+          ${indoorRow('60H', p.best60h)}
+          ${indoorRow('Indoor 100m', p.bestI100)}
+          ${indoorRow('Indoor 200m', p.bestI200)}
+          ${indoorRow('Indoor 400m', p.bestI400)}
+          ${indoorRow('Indoor 100H', p.bestI100h)}
+          ${indoorRow('Indoor 400H', p.bestI400h)}
+        </div>
+        ${compRow('100 Meters', p.proj100, p.proj100src, p.bestO100, p.d100, p.sprintConf)}
+        ${compRow('200 Meters', p.proj200, p.proj200src, p.bestO200, p.d200, p.sprintConf)}
+        ${compRow('400 Meters', p.proj400, p.proj400src, p.bestO400, p.d400, p.sprintConf)}
+        ${compRow('100 Hurdles', p.proj100h, p.proj100hSrc, p.bestO100h, p.d100h, p.hurdleConf)}
+        ${compRow('400 Hurdles', p.proj400h, p.proj400hSrc, p.bestO400h, p.d400h, p.hurdleConf)}
+      </div>`).join('')}
+  </div>`;
+}
+
+// ══════════════════════════════════════
+// SPEED PROCESSING — accepts xlsx + csv
+// Handles: fly10m_seconds, mph directly, top_speed, velocity columns
+// ══════════════════════════════════════
+function processSpeedData(raw, filename){
+  const sample=raw[0];
+  const cols=Object.keys(sample);
+
+  // Detect athlete / event columns
+  const athCol =findColName(sample,'athlete','name','player','last','first');
+  const evCol  =findColName(sample,'event','race','dist','discipline');
+
+  // Detect speed value column — priority: direct mph > fly time
+  const mphCol =findColName(sample,'mph','topspeed','top speed','velocity','speed mph','maxspeed');
+  const flyCol =findColName(sample,'fly','10m','flyTime','fly10','seconds','split','time');
+
+  speedData=raw.map(r=>{
+    const athlete=(athCol?r[athCol]:findCol(r,'athlete','name','player'))||'Unknown';
+    const event  =(evCol?r[evCol]:findCol(r,'event','race','dist'))||'';
+
+    let mph=0, fly10s=0, mps=0;
+
+    if(mphCol){
+      const v=parseFloat(String(r[mphCol]).replace(/[^0-9.\-]/g,''));
+      if(v>0){ mph=v; mps=+(v/2.23694).toFixed(3); fly10s=mps>0?+(10/mps).toFixed(3):0; }
+    }
+
+    if(!mph && flyCol){
+      const v=parseFloat(String(r[flyCol]).replace(/[^0-9.\-]/g,''));
+      if(v>0){ fly10s=v; mps=+(10/v).toFixed(3); mph=+(mps*2.23694).toFixed(2); }
+    }
+
+    if(!mph){
+      for(const k of cols){
+        const v=parseFloat(String(r[k]).replace(/[^0-9.\-]/g,''));
+        if(v>=15&&v<=35){ mph=+v.toFixed(2); mps=+(v/2.23694).toFixed(3); fly10s=+(10/mps).toFixed(3); break; }
+        if(v>=0.75&&v<=1.6&&!fly10s){ fly10s=v; mps=+(10/v).toFixed(3); mph=+(mps*2.23694).toFixed(2); }
+      }
+    }
+
+    return{athlete,event,fly10s,mps,mph:+mph.toFixed(2),peakMph:+(mph*1.04).toFixed(2)};
+  }).filter(r=>r.mph>0);
+
+  const detectedMsg=`&#9989; Loaded <strong>${filename}</strong> — ${raw.length} rows. `+
+    `Speed source: <em>${mphCol?mphCol:flyCol?flyCol:'auto-detected'}</em>. `+
+    `Athlete col: <em>${athCol||'auto'}</em>`;
+
+  if(!speedData.length){
+    showStatus('speedStatus',
+      `&#10060; Could not find valid speed data. Columns found: <em>${cols.join(', ')}</em>. `+
+      `Ensure a column contains 10m fly times (0.8–1.5s) or direct MPH values (15–35).`,true);
+    speedData=generateDemoSpeedData();
+    renderSpeedometers(); return;
+  }
+
+  showStatus('speedStatus', detectedMsg+` — <strong>${speedData.length} athletes loaded.</strong> Saving to Supabase…`);
+
+  const rows = speedData.map(r=>({ athlete:r.athlete, event:r.event, fly10s:r.fly10s, mps:r.mps, mph:r.mph, peak_mph:r.peakMph, filename }));
+  supaInsert('speed_sessions', rows)
+    .then(()=> showStatus('speedStatus', detectedMsg+` — <strong>${speedData.length} athletes saved to Supabase ✓</strong> &nbsp;·&nbsp; <button onclick="clearSpeedData()" style="background:none;border:none;color:var(--danger);font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;text-decoration:underline">Clear Supabase data</button>`))
+    .catch(e=> showStatus('speedStatus', detectedMsg+` — <strong>${speedData.length} loaded</strong> (Supabase error: ${e.message})`));
+
+  renderSpeedometers();
+}
+
+async function loadPersistedSpeedData(){
+  showStatus('speedStatus','⟳ Loading speed data from Supabase…');
+  document.getElementById('speedStatus').style.display='block';
+  try {
+    const rows = await supaGet('speed_sessions');
+    if(!rows.length) return false;
+    // Use most-recent upload batch (group by uploaded_at, take latest)
+    const latest = rows.reduce((a,b)=>a.uploaded_at>b.uploaded_at?a:b);
+    const latestTs = latest.uploaded_at;
+    // Take all rows within 10s of the latest upload (same batch)
+    const batch = rows.filter(r=> Math.abs(new Date(r.uploaded_at)-new Date(latestTs)) < 10000);
+    speedData = batch.map(r=>({ athlete:r.athlete, event:r.event||'', fly10s:parseFloat(r.fly10s)||0, mps:parseFloat(r.mps)||0, mph:parseFloat(r.mph)||0, peakMph:parseFloat(r.peak_mph)||0 })).filter(r=>r.mph>0);
+    if(!speedData.length) return false;
+    const ts = new Date(latestTs).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+    showStatus('speedStatus', `✓ Loaded ${speedData.length} athletes from Supabase · Last upload: ${ts} &nbsp;·&nbsp; <button onclick="clearSpeedData()" style="background:none;border:none;color:var(--danger);font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;text-decoration:underline">Clear Supabase data</button>`);
+    renderSpeedometers();
+    return true;
+  } catch(e){
+    console.warn('Supabase speed load failed:', e);
+    return false;
+  }
+}
+
+function clearSpeedData(){
+  supaDelete('speed_sessions','id=gte.0')
+    .catch(e=>console.warn('Supabase delete failed:',e));
+  speedData = generateDemoSpeedData();
+  document.getElementById('speedStatus').style.display = 'none';
+  renderSpeedometers();
+}
+
+function generateDemoSpeedData(){
+  return[
+    {athlete:'Teri Pridgen',  event:'100m', fly10s:0.99, mps:10.101, mph:22.59, peakMph:23.50},
+    {athlete:'Amelie Meier',  event:'100m', fly10s:0.97, mps:10.309, mph:23.06, peakMph:23.98},
+    {athlete:'Mya Lee',       event:'100m', fly10s:1.01, mps:9.901,  mph:22.14, peakMph:23.02},
+    {athlete:'Duna Vinals',   event:'400m', fly10s:1.05, mps:9.524,  mph:21.30, peakMph:22.15},
+    {athlete:'Mary Sollars',  event:'200m', fly10s:1.03, mps:9.709,  mph:21.72, peakMph:22.59},
+    {athlete:'Olivia Waymer', event:'100h', fly10s:1.07, mps:9.346,  mph:20.90, peakMph:21.74},
+    {athlete:'Mia Stimpson',  event:'60h',  fly10s:1.09, mps:9.174,  mph:20.51, peakMph:21.33},
+    {athlete:'JaMia Johnson', event:'60h',  fly10s:1.08, mps:9.259,  mph:20.70, peakMph:21.53},
+  ];
+}
+
+function renderSpeedometers(){
+  document.getElementById('speedEmpty').style.display='none';
+  document.getElementById('speedContent').style.display='block';
+  const grid=document.getElementById('speedometerGrid');
+  grid.innerHTML=speedData.map((d,i)=>`
+    <div class="speed-card">
+      <div class="athlete-name">${d.athlete}</div>
+      <div class="event-label">${d.event||'Speed Test'}</div>
+      <canvas class="speedometer" id="speedo_${i}" width="260" height="185"></canvas>
+      <div class="speed-readout">
+        <div class="mph-val">${d.peakMph}</div>
+        <div class="mph-label">PEAK VELOCITY MPH</div>
+        <div class="peak-mph">Fly 10m Speed: ${d.mph} MPH</div>
+      </div>
+      <div class="speed-detail">
+        <div><div class="val">${d.fly10s>0?d.fly10s+'s':'—'}</div><div class="lbl">10m Fly</div></div>
+        <div><div class="val">${d.mps>0?d.mps.toFixed(2):'—'}</div><div class="lbl">m/s</div></div>
+        <div><div class="val">+${(d.peakMph-d.mph).toFixed(2)}</div><div class="lbl">peak delta</div></div>
+      </div>
+    </div>`).join('');
+  // Pass peakMph as the primary (needle) value, mph as secondary (arc fill reference)
+  requestAnimationFrame(()=>speedData.forEach((d,i)=>drawRaceSpeedometer(`speedo_${i}`,d.peakMph,d.mph)));
+}
+
+// mph = primary (needle, arc) = peakMph passed in; flyMph = secondary marker = raw fly speed
+function drawRaceSpeedometer(id,peakMph,flyMph){
+  const canvas=document.getElementById(id); if(!canvas)return;
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height;
+  const cx=W/2,cy=H-18,R=108;
+  const maxMph=30,startDeg=205,endDeg=335;
+  const toRad=d=>d*Math.PI/180;
+  const angleFor=v=>toRad(startDeg+(endDeg-startDeg)*(Math.min(v,maxMph)/maxMph));
+
+  ctx.clearRect(0,0,W,H);
+
+  // Chrome bezel
+  const chromeG=ctx.createLinearGradient(cx-R-12,cy-R-12,cx+R+12,cy+R+12);
+  chromeG.addColorStop(0,'#6a5520');chromeG.addColorStop(0.2,'#c9a852');
+  chromeG.addColorStop(0.45,'#f0dfa0');chromeG.addColorStop(0.7,'#b59a57');chromeG.addColorStop(1,'#6a5520');
+  ctx.beginPath();ctx.arc(cx,cy,R+12,0,Math.PI*2);ctx.fillStyle=chromeG;ctx.fill();
+
+  // Inner bezel
+  const innerG=ctx.createLinearGradient(cx-R-4,cy-R-4,cx+R+4,cy+R+4);
+  innerG.addColorStop(0,'#3a1005');innerG.addColorStop(0.5,'#5a1a08');innerG.addColorStop(1,'#3a1005');
+  ctx.beginPath();ctx.arc(cx,cy,R+4,0,Math.PI*2);ctx.fillStyle=innerG;ctx.fill();
+
+  // Dial face
+  const faceG=ctx.createRadialGradient(cx,cy-30,5,cx,cy,R);
+  faceG.addColorStop(0,'#280006');faceG.addColorStop(0.7,'#160003');faceG.addColorStop(1,'#0a0001');
+  ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.fillStyle=faceG;ctx.fill();
+
+  // Track background arc
+  ctx.beginPath();ctx.arc(cx,cy,R-2,toRad(startDeg),toRad(endDeg));
+  ctx.strokeStyle='rgba(115,0,10,0.5)';ctx.lineWidth=28;ctx.lineCap='butt';ctx.stroke();
+
+  // Red zone 25-30
+  ctx.beginPath();ctx.arc(cx,cy,R-2,angleFor(25),toRad(endDeg));
+  ctx.strokeStyle='rgba(180,20,20,0.6)';ctx.lineWidth=28;ctx.stroke();
+
+  // Speed fill arc — now driven by peakMph (primary)
+  const sAngle=angleFor(peakMph);
+  const sG=ctx.createLinearGradient(
+    cx+Math.cos(toRad(startDeg))*(R-2),cy+Math.sin(toRad(startDeg))*(R-2),
+    cx+Math.cos(sAngle)*(R-2),cy+Math.sin(sAngle)*(R-2));
+  sG.addColorStop(0,'#8a7540');sG.addColorStop(0.5,'#b59a57');
+  sG.addColorStop(0.8,'#e8c84a');sG.addColorStop(1,peakMph>=25?'#ff4422':'#ffc820');
+  ctx.beginPath();ctx.arc(cx,cy,R-2,toRad(startDeg),sAngle);
+  ctx.strokeStyle=sG;ctx.lineWidth=28;ctx.lineCap='round';ctx.stroke();
+
+  // Glow halo
+  ctx.beginPath();ctx.arc(cx,cy,R-2,toRad(startDeg),sAngle);
+  ctx.strokeStyle=peakMph>=25?'rgba(255,60,20,0.2)':'rgba(181,154,87,0.15)';ctx.lineWidth=36;ctx.stroke();
+
+  // Secondary marker — fly speed (flyMph), shown as a white tick inside the arc
+  const fAngle=angleFor(flyMph);
+  const fx1=cx+Math.cos(fAngle)*(R-22),fy1=cy+Math.sin(fAngle)*(R-22);
+  const fx2=cx+Math.cos(fAngle)*(R+4), fy2=cy+Math.sin(fAngle)*(R+4);
+  ctx.beginPath();ctx.moveTo(fx1,fy1);ctx.lineTo(fx2,fy2);
+  ctx.strokeStyle='rgba(255,255,255,0.75)';ctx.lineWidth=2.5;ctx.lineCap='round';ctx.stroke();
+  ctx.beginPath();ctx.arc(fx1,fy1,3,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
+
+  // Tick marks
+  for(let s=0;s<=maxMph;s+=1){
+    const isMaj=(s%5===0),angle=angleFor(s);
+    const rOut=R-2,rIn=isMaj?(R-24):(R-12);
+    const tx1=cx+Math.cos(angle)*rIn,ty1=cy+Math.sin(angle)*rIn;
+    const tx2=cx+Math.cos(angle)*rOut,ty2=cy+Math.sin(angle)*rOut;
+    ctx.beginPath();ctx.moveTo(tx1,ty1);ctx.lineTo(tx2,ty2);
+    ctx.strokeStyle=s>=25?'#ff6655':isMaj?'#d4b96a':'rgba(181,154,87,0.35)';
+    ctx.lineWidth=isMaj?2.5:0.9;ctx.lineCap='butt';ctx.stroke();
+    if(s%5===0){
+      const lr=R-36;
+      ctx.fillStyle=s>=25?'#ff8877':'#d4b96a';
+      ctx.font=`700 ${s%10===0?12:10}px "Barlow Condensed",sans-serif`;
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(s,cx+Math.cos(angle)*lr,cy+Math.sin(angle)*lr);
+    }
+  }
+
+  // Decorative inner ring
+  ctx.beginPath();ctx.arc(cx,cy,R-40,0,Math.PI*2);
+  ctx.strokeStyle='rgba(181,154,87,0.12)';ctx.lineWidth=1;ctx.stroke();
+
+  // Labels
+  ctx.fillStyle='rgba(181,154,87,0.45)';ctx.font='700 10px "Barlow Condensed",sans-serif';
+  ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('PEAK MPH',cx,cy-58);
+  // Fly speed label near secondary marker
+  ctx.fillStyle='rgba(255,255,255,0.45)';ctx.font='600 8px "Barlow Condensed",sans-serif';
+  const flx=cx+Math.cos(fAngle)*(R-52),fly=cy+Math.sin(fAngle)*(R-52);
+  ctx.fillText('FLY',flx,fly);
+  ctx.fillStyle='rgba(255,80,60,0.65)';ctx.font='700 8px "Barlow Condensed",sans-serif';
+  const rlA=angleFor(27.5),rlx=cx+Math.cos(rlA)*(R-52),rly=cy+Math.sin(rlA)*(R-52);
+  ctx.fillText('REDLINE',rlx,rly);
+
+  // Needle — points to peakMph
+  const nAngle=angleFor(peakMph),nLen=R-18;
+  const nTip={x:cx+Math.cos(nAngle)*nLen,y:cy+Math.sin(nAngle)*nLen};
+  const nb1={x:cx+Math.cos(nAngle+Math.PI/2)*6,y:cy+Math.sin(nAngle+Math.PI/2)*6};
+  const nb2={x:cx+Math.cos(nAngle-Math.PI/2)*6,y:cy+Math.sin(nAngle-Math.PI/2)*6};
+  const nBack={x:cx+Math.cos(nAngle+Math.PI)*18,y:cy+Math.sin(nAngle+Math.PI)*18};
+  ctx.save();
+  ctx.shadowColor='rgba(0,0,0,0.7)';ctx.shadowBlur=10;ctx.shadowOffsetX=2;ctx.shadowOffsetY=3;
+  const nG=ctx.createLinearGradient(nBack.x,nBack.y,nTip.x,nTip.y);
+  nG.addColorStop(0,'#5a0008');nG.addColorStop(0.25,'#aa1015');nG.addColorStop(0.7,'#ee2025');nG.addColorStop(1,'#ff7755');
+  ctx.beginPath();ctx.moveTo(nTip.x,nTip.y);ctx.lineTo(nb1.x,nb1.y);
+  ctx.lineTo(nBack.x,nBack.y);ctx.lineTo(nb2.x,nb2.y);ctx.closePath();
+  ctx.fillStyle=nG;ctx.fill();
+  ctx.beginPath();ctx.moveTo(nTip.x,nTip.y);
+  ctx.lineTo(cx+Math.cos(nAngle+Math.PI/2)*2,cy+Math.sin(nAngle+Math.PI/2)*2);
+  ctx.lineTo(nBack.x,nBack.y);
+  ctx.strokeStyle='rgba(255,180,180,0.4)';ctx.lineWidth=1;ctx.stroke();
+  ctx.restore();
+
+  // Hub
+  const hubG=ctx.createRadialGradient(cx-4,cy-4,1,cx,cy,16);
+  hubG.addColorStop(0,'#ede080');hubG.addColorStop(0.4,'#c9a852');hubG.addColorStop(0.8,'#8a6a28');hubG.addColorStop(1,'#5a4010');
+  ctx.beginPath();ctx.arc(cx,cy,16,0,Math.PI*2);ctx.fillStyle=hubG;ctx.fill();
+  ctx.beginPath();ctx.arc(cx,cy,16,0,Math.PI*2);ctx.strokeStyle='rgba(240,220,130,0.5)';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,cy,5,0,Math.PI*2);ctx.fillStyle='#1a0005';ctx.fill();
+  ctx.beginPath();ctx.arc(cx,cy,2,0,Math.PI*2);ctx.fillStyle='rgba(230,200,100,0.8)';ctx.fill();
+}
+
+// ══════════════════════════════════════
+// CHART OPTIONS
+// ══════════════════════════════════════
+function chartOpts(type){
+  return{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{
+      legend:{labels:{color:'#9a7060',font:{family:'DM Mono',size:10},boxWidth:12}},
+      tooltip:{backgroundColor:'#1c0005',borderColor:'#4a0010',borderWidth:1,
+        titleColor:'#ffffff',bodyColor:'#9a7060',titleFont:{family:'DM Mono'},bodyFont:{family:'DM Mono'}}
+    },
+    scales:type!=='scatter'?{
+      x:{ticks:{color:'#9a7060',font:{family:'DM Mono',size:10}},grid:{color:'rgba(115,0,10,0.4)'}},
+      y:{ticks:{color:'#9a7060',font:{family:'DM Mono',size:10}},grid:{color:'rgba(115,0,10,0.4)'}}
+    }:{}
+  };
+}
+function destroyChart(id){if(chartInstances[id]){chartInstances[id].destroy();delete chartInstances[id];}}
+
+// Init — load all tabs from Supabase on page open
+loadTFRRSData();
+
+if(IS_FILE_PROTO){
+  // Running from file:// — Supabase fetch is blocked by browser CORS policy.
+  // Show a banner and fall back to demo/empty data. Upload still works (writes queued when served).
+  const banner = document.createElement('div');
+  banner.style.cssText = 'position:fixed;top:68px;left:0;right:0;z-index:200;background:#2a1000;border-bottom:2px solid var(--gold);padding:8px 24px;font-family:Barlow Condensed,sans-serif;font-size:12px;font-weight:600;letter-spacing:1px;color:#e8c84a;text-align:center';
+  banner.innerHTML = '⚠ Opened from local file — Supabase sync disabled. Serve via a local server (e.g. VS Code Live Server) to enable cloud data.';
+  document.body.appendChild(banner);
+  showStatus('volumeStatus', '⚠ Supabase unavailable from file://. Upload a file to load data locally.');
+  document.getElementById('volumeStatus').style.display = 'block';
+  speedData = generateDemoSpeedData(); renderSpeedometers();
+} else {
+  loadVolumeFromSupabase();
+  loadPersistedSpeedData().then(found=>{ if(!found){ speedData=generateDemoSpeedData(); renderSpeedometers(); } });
+}
+// Strength loads lazily on first tab click — see switchTab in <head>
+
+// ══════════════════════════════════════════════════
+// STRENGTH & POWER TAB
+// ══════════════════════════════════════════════════
+
+// Metric definitions: key, display label, unit, scoring benchmark (elite female sprinter ref)
+// Score = (value / benchmark) * 100, capped at 100 (higher is better for all except time-based)
+const STR_METRICS = [
+  { key:'mph',          label:'Top Speed',      unit:'mph',  bench:24.0,  color:'#b59a57' },
+  { key:'frontSquat',   label:'Front Squat',    unit:'lbs',  bench:185,   color:'#e8c84a' },
+  { key:'rdl',          label:'BB RDL',         unit:'lbs',  bench:200,   color:'#d4956a' },
+  { key:'vertJump',     label:'Vertical Jump',  unit:'in',   bench:28,    color:'#c9a852' },
+  { key:'approachJump', label:'Approach Jump',  unit:'in',   bench:34,    color:'#f0dfa0' },
+  { key:'splitSquat',   label:'BB Split Squat', unit:'lbs',  bench:185,   color:'#8a7540' },
+  { key:'hfCMJ',        label:'HF CM Jump',     unit:'in',   bench:28,    color:'#b59a57' },
+  { key:'barbellCMJ',   label:'Barbell CMJ',    unit:'m',    bench:2.0,   color:'#e8c84a' },
+];
+
+// strSessions: { [athleteName]: [ {date, mph, frontSquat, ...}, ... ] }
+let strSessions = {};
+
+// ── Supabase load on tab open ──────────────────────
+async function loadStrFromSupabase(){
+  showStrUploadStatus('⟳ Loading strength data from Supabase…', 'ok');
+  try {
+    const rows = await supaGet('strength_sessions');
+    if(!rows.length){
+      showStrUploadStatus('No strength data in Supabase yet. Upload a file to get started.', 'ok');
+      return;
+    }
+    strSessions = {};
+    rows.forEach(r=>{
+      const name = r.athlete;
+      if(!strSessions[name]) strSessions[name]=[];
+      strSessions[name].push({
+        date:         r.session_date || new Date(r.uploaded_at).toISOString().split('T')[0],
+        mph:          r.mph          != null ? parseFloat(r.mph)           : null,
+        frontSquat:   r.front_squat  != null ? parseFloat(r.front_squat)   : null,
+        barbellCMJ:   r.barbell_cmj  != null ? parseFloat(r.barbell_cmj)   : null,
+        vertJump:     r.vert_jump    != null ? parseFloat(r.vert_jump)      : null,
+        approachJump: r.approach_jump!= null ? parseFloat(r.approach_jump)  : null,
+        hfCMJ:        r.hf_cmj       != null ? parseFloat(r.hf_cmj)        : null,
+        rdl:          r.rdl          != null ? parseFloat(r.rdl)            : null,
+        splitSquat:   r.split_squat  != null ? parseFloat(r.split_squat)    : null,
+      });
+    });
+    // Sort each athlete's sessions by date
+    Object.keys(strSessions).forEach(n=> strSessions[n].sort((a,b)=>a.date.localeCompare(b.date)));
+    const latest = rows.reduce((a,b)=>a.uploaded_at>b.uploaded_at?a:b);
+    const ts = new Date(latest.uploaded_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+    const label = document.getElementById('strSyncLabel');
+    if(label) label.textContent = `Last upload: ${ts}`;
+    populateStrSelect();
+    showStrUploadStatus(`✓ Loaded ${rows.length} entries · ${Object.keys(strSessions).length} athletes from Supabase`, 'ok');
+  } catch(e){
+    console.warn('Supabase strength load failed:', e);
+    showStrUploadStatus(`⚠ Supabase load failed: ${e.message}`, 'err');
+  }
+}
+
+function saveStrData(savedAt){
+  const label = document.getElementById('strSyncLabel');
+  if(label) label.textContent = `Last upload: ${savedAt}`;
+}
+
+// ── Upload handlers ───────────────────────────────
+function handleStrUpload(e){
+  const file = e.target.files[0]; if(!file) return;
+  e.target.value='';
+  readStrFile(file);
+}
+function handleStrDrop(e){
+  const file = e.dataTransfer.files[0]; if(!file) return;
+  readStrFile(file);
+}
+function readStrFile(file){
+  const ext = file.name.split('.').pop().toLowerCase();
+  if(ext==='csv'){
+    const reader = new FileReader();
+    reader.onload = ev => {
+      // parseCSVtoRows returns objects — convert to 2D array for parseStrRows
+      const text = ev.target.result;
+      const lines = text.trim().split(/\r?\n/);
+      if(lines.length < 2){ showStrUploadStatus('⚠ File appears empty.','err'); return; }
+      const delim = lines[0].includes('\t') ? '\t' : ',';
+      const arr2d = lines.map(line =>
+        line.split(delim).map(v => v.trim().replace(/^"|"$/g,''))
+      );
+      parseStrRows(arr2d, file.name);
+    };
+    reader.readAsText(file);
+  } else {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const wb = XLSX.read(ev.target.result, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {header:1,defval:''});
+      parseStrRows(rows, file.name);
+    };
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+function parseStrRows(rows, filename){
+  if(!rows||rows.length<2){ showStrUploadStatus('⚠ File appears empty or unreadable.','err'); return; }
+  const hdr = rows[0].map(c=>String(c).toLowerCase().trim());
+
+  // Column finder — matches first header containing any keyword
+  const fc = (...kw) => { for(const k of kw){ const i=hdr.findIndex(h=>h.includes(k)); if(i>=0) return i; } return -1; };
+
+  // Name columns — Teambuildr uses First + Last; fallback to single Athlete column
+  const colFirst = fc('first');
+  const colLast  = fc('last');
+  const colAthl  = fc('athlete','player');
+
+  // Metric columns — ordered to match Teambuildr headers exactly before generic fallbacks
+  const colMph  = fc('top speed','mph','velocity');
+  const colFSq  = fc('front squat','fsq');
+  const colRDL  = fc('bb rdl','rdl','romanian');
+  const colVJ   = fc('vertical jump','vert jump','vertical');
+  const colAJ   = fc('approach jump','approach');
+  const colSSQ  = fc('bb split squat','split squat','bss','ssq');
+  const colHF   = fc('hands free','hf cmj','hfcmj');
+  const colBCMJ = fc('barbell cmj','vitruve','cmj 45','bbcmj');
+
+  if(colFirst<0 && colLast<0 && colAthl<0){
+    showStrUploadStatus('⚠ No name column found. Expected "First"/"Last" or "Athlete".','err'); return;
+  }
+
+  const num = (row, col) => {
+    if(col<0) return null;
+    const v = parseFloat(String(row[col]).replace(/[^0-9.\-]/g,''));
+    return isNaN(v) || v===0 ? null : v;
+  };
+
+  let loaded=0;
+  const sessions={};
+
+  rows.slice(1).forEach(row=>{
+    // Build athlete name
+    let name='';
+    if(colFirst>=0 || colLast>=0){
+      const first = String(row[colFirst]||'').trim();
+      const last  = String(row[colLast] ||'').trim();
+      // Skip AVERAGE or empty rows
+      if(!first && !last) return;
+      if(first.toLowerCase()==='average'||last.toLowerCase()==='average') return;
+      name = (first+' '+last).trim();
+    } else {
+      name = String(row[colAthl]||'').trim();
+      if(!name||name.toLowerCase()==='average') return;
+    }
+
+    const norm = normName(name);
+
+    // Parse metrics in their native units:
+    // VJ/AJ in inches, HF in cm, Barbell CMJ in meters, lifts in lbs, MPH in mph
+    let vertJump = num(row, colVJ);
+    // Sanity-check vertical jump — Teambuildr occasionally exports 10× (e.g. 236 instead of 23.6)
+    if(vertJump!=null && vertJump > 60) vertJump = +(vertJump/10).toFixed(1);
+
+    const entry = {
+      mph:          num(row, colMph),
+      frontSquat:   num(row, colFSq),
+      rdl:          num(row, colRDL),
+      vertJump,
+      approachJump: num(row, colAJ),
+      splitSquat:   num(row, colSSQ),
+      hfCMJ:        num(row, colHF),
+      barbellCMJ:   num(row, colBCMJ),
+    };
+
+    const hasData = STR_METRICS.some(m => entry[m.key] != null);
+    if(!hasData) return;
+
+    // Each upload is a snapshot — use filename as the session key so re-uploads
+    // of the same file replace rather than duplicate
+    const sessionKey = filename;
+    if(!sessions[norm]) sessions[norm]=[];
+    sessions[norm].push({ date: sessionKey, ...entry });
+    loaded++;
+  });
+
+  if(!loaded){ showStrUploadStatus('⚠ No valid rows found. Check that columns match expected names.','err'); return; }
+
+  // Replace existing sessions from this filename; keep sessions from other uploads
+  Object.entries(sessions).forEach(([name, newRows])=>{
+    if(!strSessions[name]) strSessions[name]=[];
+    // Remove any prior entries with same session key (same filename)
+    strSessions[name] = strSessions[name].filter(r=>r.date!==filename);
+    strSessions[name].push(...newRows);
+    strSessions[name].sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  });
+
+  const savedAt = new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+  saveStrData(savedAt);
+  populateStrSelect();
+  showStrUploadStatus(`✓ Loaded ${loaded} rows · ${Object.keys(sessions).length} athletes · Saving to Supabase…`, 'ok');
+
+  // Build Supabase rows from all new sessions
+  const supaRows = [];
+  Object.entries(sessions).forEach(([name, rows])=>{
+    rows.forEach(r=>{
+      supaRows.push({
+        athlete:       name,
+        session_date:  filename,
+        mph:           r.mph,
+        front_squat:   r.frontSquat,
+        barbell_cmj:   r.barbellCMJ,
+        vert_jump:     r.vertJump,
+        approach_jump: r.approachJump,
+        hf_cmj:        r.hfCMJ,
+        rdl:           r.rdl,
+        split_squat:   r.splitSquat,
+        filename
+      });
+    });
+  });
+
+  supaInsert('strength_sessions', supaRows)
+    .then(()=> showStrUploadStatus(`✓ ${loaded} rows saved to Supabase · ${Object.keys(sessions).length} athletes`, 'ok'))
+    .catch(e => showStrUploadStatus(`✓ ${loaded} rows loaded (Supabase error: ${e.message})`, 'err'));
+
+  // Auto-select first athlete if none chosen
+  const sel = document.getElementById('strAthleteSelect');
+  if(!sel.value && Object.keys(strSessions).length){
+    sel.value = Object.keys(strSessions)[0];
+    renderStrAthlete();
+  }
+}
+
+// ── Populate athlete dropdown from ROSTER + strSessions ─────
+function populateStrSelect(){
+  const sel = document.getElementById('strAthleteSelect');
+  const current = sel.value;
+  const rosterNames = [...PRESET_ROSTER, ...EXTRA_ATHLETES].map(n=>normName(n));
+  // Union of roster + anyone in strSessions
+  const allNames = [...new Set([...rosterNames, ...Object.keys(strSessions)])].sort();
+
+  sel.innerHTML = '<option value="">— Choose Athlete —</option>';
+  allNames.forEach(n=>{
+    const opt = document.createElement('option');
+    opt.value = n; opt.textContent = n;
+    if(n===current) opt.selected=true;
+    sel.appendChild(opt);
+  });
+}
+
+// ── Scoring engine ────────────────────────────────
+function scoreEntry(entry){
+  let total=0, count=0;
+  const scores={};
+  STR_METRICS.forEach(m=>{
+    const val = entry[m.key];
+    if(val==null){ scores[m.key]=null; return; }
+    const raw = Math.min((val/m.bench)*100, 100);
+    scores[m.key] = Math.round(raw);
+    total+=raw; count++;
+  });
+  scores._composite = count>0 ? Math.round(total/count) : 0;
+  scores._count = count;
+  return scores;
+}
+
+function gradeFromScore(s){
+  if(s>=90) return {grade:'ELITE',   color:'#22c55e'};
+  if(s>=75) return {grade:'ADVANCED',color:'#b59a57'};
+  if(s>=60) return {grade:'PROFICIENT',color:'#e8c84a'};
+  if(s>=45) return {grade:'DEVELOPING',color:'#d4956a'};
+  return            {grade:'BUILDING', color:'#9a7060'};
+}
+
+// ── Main render ───────────────────────────────────
+function renderStrAthlete(){
+  const sel = document.getElementById('strAthleteSelect');
+  const name = sel.value;
+  const panel = document.getElementById('strAthletePanel');
+  const histWrap = document.getElementById('strHistoryWrap');
+
+  if(!name || !strSessions[name] || !strSessions[name].length){
+    panel.innerHTML = `<div class="str-empty"><div class="icon">📊</div><p>No data for this athlete yet.<br>Upload a file to get started.</p></div>`;
+    histWrap.style.display='none';
+    return;
+  }
+
+  const sessions = strSessions[name];
+  const latest = sessions[sessions.length-1];
+  const prev   = sessions.length>1 ? sessions[sessions.length-2] : null;
+  const scores = scoreEntry(latest);
+  const {grade, color} = gradeFromScore(scores._composite);
+
+  // Build metric cards
+  const metricCards = STR_METRICS.map(m=>{
+    const val = latest[m.key];
+    if(val==null) return '';
+    const pct = scores[m.key];
+    const prevVal = prev ? prev[m.key] : null;
+    const delta = (prevVal!=null && val!=null) ? (val-prevVal) : null;
+    const deltaStr = delta!=null ? `<span style="color:${delta>=0?'#22c55e':'var(--danger)'};font-size:10px;margin-left:4px">${delta>=0?'▲':'▼'}${Math.abs(delta).toFixed(1)}</span>` : '';
+    return `<div class="str-metric-card" style="--bar-color:${m.color}">
+      <div class="str-metric-name">${m.label}</div>
+      <div><span class="str-metric-val">${val}</span><span class="str-metric-unit">${m.unit}</span>${deltaStr}</div>
+      <div class="str-metric-pct" style="color:${m.color}">${pct}/100</div>
+      <div class="str-pct-bar"><div class="str-pct-fill" style="width:${pct}%;background:${m.color}"></div></div>
+    </div>`;
+  }).join('');
+
+  // Radar chart data
+  const radarLabels = STR_METRICS.filter(m=>latest[m.key]!=null).map(m=>m.label);
+  const radarVals   = STR_METRICS.filter(m=>latest[m.key]!=null).map(m=>scores[m.key]);
+  const radarPrev   = prev ? STR_METRICS.filter(m=>latest[m.key]!=null).map(m=>{
+    const ps = scoreEntry(prev); return ps[m.key]||0;
+  }) : null;
+
+  const sessionLabel = latest.date
+    ? String(latest.date).replace(/\.csv$/i,'').replace(/\.xlsx$/i,'').replace(/Teambuildr_/gi,'').replace(/_/g,' ')
+    : 'Latest';
+
+  panel.innerHTML = `
+    <div class="str-metrics-panel">
+      <div class="str-panel-header">
+        <div>
+          <div class="str-panel-title">${name}</div>
+          <div class="str-panel-sub">${sessionLabel} · ${scores._count} metrics</div>
+        </div>
+        <div class="str-score-badge">
+          <div class="str-score-val">${scores._composite}</div>
+          <div class="str-score-lbl">Composite</div>
+          <div class="str-score-grade" style="color:${color}">${grade}</div>
+        </div>
+      </div>
+      <div class="str-body">
+        <div>
+          <div style="font-size:10px;letter-spacing:2px;color:var(--gold);font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;margin-bottom:12px">Metric Breakdown</div>
+          <div class="str-metrics-grid">${metricCards}</div>
+        </div>
+        <div class="str-radar-wrap">
+          <div style="font-size:10px;letter-spacing:2px;color:var(--gold);font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;margin-bottom:8px;text-align:center">Radar Profile</div>
+          <canvas id="strRadarChart" class="str-radar-canvas" width="280" height="280"></canvas>
+          ${radarPrev ? '<div style="font-size:9px;color:var(--muted);text-align:center;margin-top:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:1px">GOLD = Latest · DASHED = Previous</div>' : ''}
+        </div>
+      </div>
+    </div>`;
+
+  // Draw radar chart
+  requestAnimationFrame(()=>{
+    destroyChart('strRadarChart');
+    const ctx2 = document.getElementById('strRadarChart').getContext('2d');
+    const datasets = [{
+      label: dateStr,
+      data: radarVals,
+      backgroundColor: 'rgba(181,154,87,0.2)',
+      borderColor: '#b59a57',
+      borderWidth: 2,
+      pointBackgroundColor: '#e8c84a',
+      pointRadius: 4,
+    }];
+    if(radarPrev){
+      const prevDate = prev.date ? new Date(prev.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}) : 'Prev';
+      datasets.push({
+        label: prevDate,
+        data: radarPrev,
+        backgroundColor: 'rgba(255,255,255,0.04)',
+        borderColor: 'rgba(255,255,255,0.35)',
+        borderWidth: 1.5,
+        borderDash: [4,4],
+        pointBackgroundColor: 'rgba(255,255,255,0.5)',
+        pointRadius: 3,
+      });
+    }
+    chartInstances['strRadarChart'] = new Chart(ctx2, {
+      type:'radar',
+      data:{ labels:radarLabels, datasets },
+      options:{
+        responsive:false,
+        scales:{
+          r:{
+            min:0,max:100,
+            ticks:{ display:false, stepSize:25 },
+            grid:{ color:'rgba(115,0,10,0.5)' },
+            angleLines:{ color:'rgba(181,154,87,0.2)' },
+            pointLabels:{ color:'#d4b96a', font:{ family:'Barlow Condensed', size:10, weight:'700' } }
+          }
+        },
+        plugins:{
+          legend:{ display:!!radarPrev, labels:{ color:'#9a7060', font:{family:'DM Mono',size:9}, boxWidth:10, padding:8 } },
+          tooltip:{ backgroundColor:'#1c0005', borderColor:'#4a0010', borderWidth:1, titleColor:'#fff', bodyColor:'#9a7060', titleFont:{family:'DM Mono'}, bodyFont:{family:'DM Mono'},
+            callbacks:{ label: ctx3 => ` ${ctx3.dataset.label}: ${ctx3.raw}/100` }
+          }
+        }
+      }
+    });
+  });
+
+  // Session history table
+  if(sessions.length>1){
+    histWrap.style.display='block';
+    const tbl = document.getElementById('strHistoryTable');
+    tbl.innerHTML = `<thead><tr><th>Date</th><th>Score</th>${STR_METRICS.map(m=>`<th>${m.label}</th>`).join('')}</tr></thead>
+      <tbody>${[...sessions].reverse().map(sess=>{
+        const sc = scoreEntry(sess);
+        const {color:gc} = gradeFromScore(sc._composite);
+        return `<tr>
+          <td style="color:var(--muted);font-family:'DM Mono',monospace;font-size:10px">${String(sess.date).replace(/\.csv$/i,'').replace(/\.xlsx$/i,'').replace(/Teambuildr_/i,'').replace(/_/g,' ')}</td>
+          <td><span style="color:${gc};font-weight:700;font-family:'Bebas Neue',sans-serif;font-size:16px">${sc._composite}</span></td>
+          ${STR_METRICS.map(m=>`<td style="color:var(--text-soft)">${sess[m.key]!=null?sess[m.key]+'<span style="font-size:9px;color:var(--muted)"> '+m.unit+'</span>':'<span style="color:var(--border-lt)">—</span>'}</td>`).join('')}
+        </tr>`;
+      }).join('')}</tbody>`;
+  } else {
+    histWrap.style.display='none';
+  }
+}
+
+function showStrUploadStatus(msg, type){
+  const el = document.getElementById('strUploadStatus');
+  el.style.display='block';
+  el.style.borderLeftColor = type==='ok' ? 'var(--success)' : 'var(--danger)';
+  el.innerHTML = msg;
+}
+
+</script>
+
+</div><!-- end dashboardBody -->
+</body>
+</html>
