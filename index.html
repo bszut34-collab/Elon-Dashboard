@@ -2220,10 +2220,9 @@ function enrichWithSpeedTab(entry, athleteName){
   return entry;
 }
 
-// Group-relative score for spider chart
-// Blends benchmark-relative % with group rank to reduce drama on small samples.
-// With N athletes: as N grows, weight shifts toward group rank.
-// With tiny groups (2-3), stays mostly benchmark-anchored so the chart isn't extreme.
+// Group T-score for spider chart
+// T = 50 + 10 * (value - groupMean) / groupSD
+// Capped at 20–80 (3 SDs) to prevent distortion with small samples
 function groupRelativeScores(athleteName){
   const raw = strSessions[athleteName]?.[strSessions[athleteName].length-1];
   if(!raw) return {};
@@ -2231,29 +2230,29 @@ function groupRelativeScores(athleteName){
   const allLatest = Object.entries(strSessions)
     .filter(([,s])=> s && s.length)
     .map(([n,s])=> enrichWithSpeedTab(s[s.length-1], n));
-  const n = allLatest.length;
-  // Blend factor: 0 = pure benchmark, 1 = pure group rank
-  // Reaches ~0.5 blend at 6 athletes, ~0.7 at 10+
-  const groupWeight = Math.min(0.7, (n - 1) / (n + 3));
-  const benchWeight = 1 - groupWeight;
 
   const rel = {};
   STR_METRICS.forEach(m=>{
     const myVal = athleteLatest[m.key];
     if(myVal==null){ rel[m.key]=null; return; }
 
-    // Benchmark-relative score (0–100)
-    const benchScore = Math.min((myVal / m.bench) * 100, 100);
-
-    // Group-rank score (0–100)
     const allVals = allLatest.map(s=>s[m.key]).filter(v=>v!=null);
-    let rankScore = benchScore; // fallback to bench if only one person has data
-    if(allVals.length >= 2){
-      const gMin = Math.min(...allVals), gMax = Math.max(...allVals);
-      rankScore = gMax===gMin ? 50 : ((myVal-gMin)/(gMax-gMin))*100;
+
+    // Need at least 2 values for a meaningful SD — fall back to benchmark-relative
+    if(allVals.length < 2){
+      rel[m.key] = Math.round(Math.min((myVal / m.bench) * 100, 100) * 0.5 + 25); // maps 0–100 bench% → 25–75
+      return;
     }
 
-    rel[m.key] = Math.round(benchScore*benchWeight + rankScore*groupWeight);
+    const mean = allVals.reduce((a,b)=>a+b,0) / allVals.length;
+    const variance = allVals.reduce((a,b)=>a+(b-mean)**2, 0) / allVals.length;
+    const sd = Math.sqrt(variance);
+
+    // If SD is zero (all identical values) return 50
+    const tScore = sd === 0 ? 50 : 50 + 10 * ((myVal - mean) / sd);
+
+    // Cap at 20–80 to prevent extreme distortion
+    rel[m.key] = Math.round(Math.max(20, Math.min(80, tScore)));
   });
   return rel;
 }
@@ -2307,7 +2306,7 @@ function renderStrAthlete(){
       ? `<span style="color:${delta>=0?'#22c55e':'var(--danger)'};font-size:10px;margin-left:4px">${delta>=0?'▲':'▼'}${Math.abs(delta).toFixed(1)}</span>`
       : '';
     const relLabel = relPct!=null
-      ? `<span style="font-size:9px;color:var(--muted);margin-left:6px">Group: ${relPct}%</span>`
+      ? `<span style="font-size:9px;color:var(--muted);margin-left:6px">T: ${relPct}</span>`
       : '';
     const speedBadge = (m.key==='mph' && speedUpgraded)
       ? `<span style="font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(181,154,87,0.15);border:1px solid rgba(181,154,87,0.4);color:var(--gold);margin-left:6px;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:1px">⚡ FROM SPEED TAB</span>`
@@ -2348,7 +2347,7 @@ function renderStrAthlete(){
         </div>
         <div class="str-radar-wrap">
           <div style="font-size:10px;letter-spacing:2px;color:var(--gold);font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;margin-bottom:4px;text-align:center">Group Comparison</div>
-          <div style="font-size:9px;color:var(--muted);text-align:center;margin-bottom:8px;font-family:'Barlow Condensed',sans-serif;letter-spacing:1px">EDGE = best in group · CENTER = lowest</div>
+          <div style="font-size:9px;color:var(--muted);text-align:center;margin-bottom:8px;font-family:'Barlow Condensed',sans-serif;letter-spacing:1px">T-SCORE · 50 = GROUP AVG · 60 = +1 SD · 40 = −1 SD</div>
           <canvas id="strRadarChart" class="str-radar-canvas" width="280" height="280"></canvas>
         </div>
       </div>
@@ -2373,8 +2372,8 @@ function renderStrAthlete(){
         responsive:false,
         scales:{
           r:{
-            min:0, max:100,
-            ticks:{ display:false },
+            min:20, max:80,
+            ticks:{ display:false, stepSize:10 },
             grid:{ color:'rgba(115,0,10,0.5)' },
             angleLines:{ color:'rgba(181,154,87,0.2)' },
             pointLabels:{ color:'#d4b96a', font:{ family:'Barlow Condensed', size:10, weight:'700' } }
@@ -2390,7 +2389,9 @@ function renderStrAthlete(){
               label: ctx3 => {
                 const m = STR_METRICS.find(x=>x.label===ctx3.label);
                 const raw = m ? latest[m.key] : null;
-                return ` ${raw!=null?raw+' '+m.unit+' — ':''}Group rank: ${ctx3.raw}%`;
+                const t = ctx3.raw;
+                const sd = t===50 ? 'avg' : t>50 ? `+${((t-50)/10).toFixed(1)} SD` : `${((t-50)/10).toFixed(1)} SD`;
+                return ` ${raw!=null?raw+' '+m.unit+' — ':''}T: ${t} (${sd})`;
               }
             }
           }
