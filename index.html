@@ -515,7 +515,11 @@ async function supaInsert(table, rows){
     method:'POST', headers:{...SUPA_HDR, 'Prefer':'return=minimal'},
     body: JSON.stringify(rows)
   });
-  if(!r.ok){ const t=await r.text(); throw new Error(`Supabase INSERT ${table}: ${r.status} ${t}`); }
+  if(!r.ok){
+    const t = await r.text();
+    console.error(`Supabase INSERT ${table} error ${r.status}:`, t);
+    throw new Error(`${r.status}: ${t}`);
+  }
 }
 async function supaDelete(table, filter){
   if(IS_FILE_PROTO) throw new Error('file:// — open via server to enable Supabase sync');
@@ -1873,6 +1877,7 @@ let strSessions = {};
 
 // ── Supabase load on tab open ──────────────────────
 async function loadStrFromSupabase(){
+  window._strLoaded = true; // mark as loaded regardless of outcome
   showStrUploadStatus('⟳ Loading strength data from Supabase…', 'ok');
   try {
     const rows = await supaGet('strength_sessions');
@@ -2055,7 +2060,7 @@ function parseStrRows(rows, filename){
     rows.forEach(r=>{
       supaRows.push({
         athlete:       name,
-        session_date:  filename,
+        session_date:  r.date,
         mph:           r.mph,
         front_squat:   r.frontSquat,
         barbell_cmj:   r.barbellCMJ,
@@ -2070,8 +2075,16 @@ function parseStrRows(rows, filename){
   });
 
   supaInsert('strength_sessions', supaRows)
-    .then(()=> showStrUploadStatus(`✓ ${loaded} rows saved to Supabase · ${Object.keys(sessions).length} athletes`, 'ok'))
-    .catch(e => showStrUploadStatus(`✓ ${loaded} rows loaded (Supabase error: ${e.message})`, 'err'));
+    .then(()=>{
+      showStrUploadStatus(`✓ ${loaded} rows saved to Supabase · ${Object.keys(sessions).length} athletes — reloading…`, 'ok');
+      window._strLoaded = false;
+      loadStrFromSupabase();
+    })
+    .catch(e => {
+      console.error('Supabase strength insert failed:', e.message);
+      console.log('Sample row sent:', JSON.stringify(supaRows[0], null, 2));
+      showStrUploadStatus(`⚠ Supabase error: ${e.message} — check console for details`, 'err');
+    });
 
   // Auto-select first athlete if none chosen
   const sel = document.getElementById('strAthleteSelect');
@@ -2117,12 +2130,41 @@ function scoreEntry(entry){
 }
 
 // Group-relative score: 100 = best in group, 0 = worst in group — used for spider chart
+// ── Speed-tab MPH lookup ─────────────────────────────
+// Returns the best peak MPH for an athlete from the speed tab,
+// or null if no match found
+function getSpeedTabMph(athleteName){
+  if(!speedData || !speedData.length) return null;
+  const n = athleteName.toLowerCase().trim();
+  const matches = speedData.filter(r=>{
+    const rn = (r.athlete||'').toLowerCase().trim();
+    // Match on last name or full name
+    const last = n.split(' ').pop();
+    return rn===n || rn.includes(last) || n.includes(rn.split(' ').pop());
+  });
+  if(!matches.length) return null;
+  return Math.max(...matches.map(r=>r.peakMph||r.mph||0));
+}
+
+// Returns a copy of the session entry with mph upgraded from speed tab if higher
+function enrichWithSpeedTab(entry, athleteName){
+  const speedMph = getSpeedTabMph(athleteName);
+  if(speedMph==null) return entry;
+  const strMph = entry.mph || 0;
+  if(speedMph > strMph){
+    return {...entry, mph: +speedMph.toFixed(2), _mphFromSpeed: true};
+  }
+  return entry;
+}
+
 function groupRelativeScores(athleteName){
-  const athleteLatest = strSessions[athleteName]?.[strSessions[athleteName].length-1];
-  if(!athleteLatest) return {};
+  const raw = strSessions[athleteName]?.[strSessions[athleteName].length-1];
+  if(!raw) return {};
+  const athleteLatest = enrichWithSpeedTab(raw, athleteName);
+  // Build allLatest — enrich each athlete's session with speed tab too
   const allLatest = Object.entries(strSessions)
     .filter(([,s])=> s && s.length)
-    .map(([,s])=> s[s.length-1]);
+    .map(([n,s])=> enrichWithSpeedTab(s[s.length-1], n));
   const rel = {};
   STR_METRICS.forEach(m=>{
     const myVal = athleteLatest[m.key];
@@ -2157,8 +2199,12 @@ function renderStrAthlete(){
   }
 
   const sessions = strSessions[name];
-  const latest = sessions[sessions.length-1];
-  const prev   = sessions.length>1 ? sessions[sessions.length-2] : null;
+  const rawLatest = sessions[sessions.length-1];
+  const prev      = sessions.length>1 ? sessions[sessions.length-2] : null;
+
+  // Enrich latest with speed tab MPH if it's higher
+  const latest = enrichWithSpeedTab(rawLatest, name);
+  const speedUpgraded = latest._mphFromSpeed === true;
 
   // Absolute scores → RAS badge
   const absScores = scoreEntry(latest);
@@ -2181,9 +2227,12 @@ function renderStrAthlete(){
     const relLabel = relPct!=null
       ? `<span style="font-size:9px;color:var(--muted);margin-left:6px">Group: ${relPct}%</span>`
       : '';
+    const speedBadge = (m.key==='mph' && speedUpgraded)
+      ? `<span style="font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(181,154,87,0.15);border:1px solid rgba(181,154,87,0.4);color:var(--gold);margin-left:6px;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:1px">⚡ FROM SPEED TAB</span>`
+      : '';
     return `<div class="str-metric-card" style="--bar-color:${m.color}">
       <div class="str-metric-name">${m.label}</div>
-      <div><span class="str-metric-val">${val}</span><span class="str-metric-unit">${m.unit}</span>${deltaStr}${relLabel}</div>
+      <div><span class="str-metric-val">${val}</span><span class="str-metric-unit">${m.unit}</span>${deltaStr}${speedBadge}${relLabel}</div>
       <div class="str-metric-pct" style="color:${m.color}">${absPct}/100</div>
       <div class="str-pct-bar"><div class="str-pct-fill" style="width:${absPct}%;background:${m.color}"></div></div>
     </div>`;
