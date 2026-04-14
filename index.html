@@ -1437,8 +1437,8 @@ function generatePredictions(){
 
     // 400m: from indoor 400m, or chain from proj200
     const proj400 = bestI400 ? +(bestI400*0.988).toFixed(2)
-      : proj200 ? +(proj200*2.1).toFixed(2) : null;
-    const proj400src = bestI400 ? 'Indoor 400m × 0.988' : '200m chain × 2.1';
+      : proj200 ? +(proj200*2.18).toFixed(2) : null;
+    const proj400src = bestI400 ? 'Indoor 400m × 0.988' : '200m chain × 2.18';
 
     // 100H: from indoor 60H or indoor 100H
     const proj100h = best60h ? +(best60h*1.545+0.3).toFixed(2)
@@ -1448,8 +1448,8 @@ function generatePredictions(){
 
     // 400H: from indoor 400H or chain from 100H proj
     const proj400h = bestI400h ? +(bestI400h*0.988).toFixed(2)
-      : proj100h ? +(proj100h*4.15).toFixed(2) : null;
-    const proj400hSrc = bestI400h ? 'Indoor 400H × 0.988' : '100H chain × 4.15';
+      : proj100h ? +(proj100h*4.35).toFixed(2) : null;
+    const proj400hSrc = bestI400h ? 'Indoor 400H × 0.988' : '100H chain × 4.35';
 
     // ── Delta: actual outdoor vs projection ────────────
     const delta = (actual, proj) => (actual!=null&&proj!=null)
@@ -2085,12 +2085,13 @@ function parseStrRows(rows, filename){
 function populateStrSelect(){
   const sel = document.getElementById('strAthleteSelect');
   const current = sel.value;
-  const rosterNames = [...PRESET_ROSTER, ...EXTRA_ATHLETES].map(n=>normName(n));
-  // Union of roster + anyone in strSessions
-  const allNames = [...new Set([...rosterNames, ...Object.keys(strSessions)])].sort();
-
+  // Only show athletes who have at least one session with real metric data
+  const withData = Object.keys(strSessions).filter(n =>
+    strSessions[n] && strSessions[n].length &&
+    STR_METRICS.some(m => strSessions[n][strSessions[n].length-1][m.key] != null)
+  ).sort();
   sel.innerHTML = '<option value="">— Choose Athlete —</option>';
-  allNames.forEach(n=>{
+  withData.forEach(n=>{
     const opt = document.createElement('option');
     opt.value = n; opt.textContent = n;
     if(n===current) opt.selected=true;
@@ -2099,6 +2100,7 @@ function populateStrSelect(){
 }
 
 // ── Scoring engine ────────────────────────────────
+// Absolute score vs benchmark — used for composite RAS badge
 function scoreEntry(entry){
   let total=0, count=0;
   const scores={};
@@ -2112,6 +2114,25 @@ function scoreEntry(entry){
   scores._composite = count>0 ? Math.round(total/count) : 0;
   scores._count = count;
   return scores;
+}
+
+// Group-relative score: 100 = best in group, 0 = worst in group — used for spider chart
+function groupRelativeScores(athleteName){
+  const athleteLatest = strSessions[athleteName]?.[strSessions[athleteName].length-1];
+  if(!athleteLatest) return {};
+  const allLatest = Object.entries(strSessions)
+    .filter(([,s])=> s && s.length)
+    .map(([,s])=> s[s.length-1]);
+  const rel = {};
+  STR_METRICS.forEach(m=>{
+    const myVal = athleteLatest[m.key];
+    if(myVal==null){ rel[m.key]=null; return; }
+    const allVals = allLatest.map(s=>s[m.key]).filter(v=>v!=null);
+    if(allVals.length<2){ rel[m.key]=75; return; }
+    const gMin=Math.min(...allVals), gMax=Math.max(...allVals);
+    rel[m.key] = gMax===gMin ? 75 : Math.round(((myVal-gMin)/(gMax-gMin))*100);
+  });
+  return rel;
 }
 
 function gradeFromScore(s){
@@ -2138,31 +2159,39 @@ function renderStrAthlete(){
   const sessions = strSessions[name];
   const latest = sessions[sessions.length-1];
   const prev   = sessions.length>1 ? sessions[sessions.length-2] : null;
-  const scores = scoreEntry(latest);
-  const {grade, color} = gradeFromScore(scores._composite);
+
+  // Absolute scores → RAS badge
+  const absScores = scoreEntry(latest);
+  const {grade, color} = gradeFromScore(absScores._composite);
+
+  // Group-relative scores → spider chart
+  const relScores = groupRelativeScores(name);
 
   // Build metric cards
   const metricCards = STR_METRICS.map(m=>{
     const val = latest[m.key];
     if(val==null) return '';
-    const pct = scores[m.key];
+    const absPct = absScores[m.key];
+    const relPct = relScores[m.key];
     const prevVal = prev ? prev[m.key] : null;
     const delta = (prevVal!=null && val!=null) ? (val-prevVal) : null;
-    const deltaStr = delta!=null ? `<span style="color:${delta>=0?'#22c55e':'var(--danger)'};font-size:10px;margin-left:4px">${delta>=0?'▲':'▼'}${Math.abs(delta).toFixed(1)}</span>` : '';
+    const deltaStr = delta!=null
+      ? `<span style="color:${delta>=0?'#22c55e':'var(--danger)'};font-size:10px;margin-left:4px">${delta>=0?'▲':'▼'}${Math.abs(delta).toFixed(1)}</span>`
+      : '';
+    const relLabel = relPct!=null
+      ? `<span style="font-size:9px;color:var(--muted);margin-left:6px">Group: ${relPct}%</span>`
+      : '';
     return `<div class="str-metric-card" style="--bar-color:${m.color}">
       <div class="str-metric-name">${m.label}</div>
-      <div><span class="str-metric-val">${val}</span><span class="str-metric-unit">${m.unit}</span>${deltaStr}</div>
-      <div class="str-metric-pct" style="color:${m.color}">${pct}/100</div>
-      <div class="str-pct-bar"><div class="str-pct-fill" style="width:${pct}%;background:${m.color}"></div></div>
+      <div><span class="str-metric-val">${val}</span><span class="str-metric-unit">${m.unit}</span>${deltaStr}${relLabel}</div>
+      <div class="str-metric-pct" style="color:${m.color}">${absPct}/100</div>
+      <div class="str-pct-bar"><div class="str-pct-fill" style="width:${absPct}%;background:${m.color}"></div></div>
     </div>`;
   }).join('');
 
-  // Radar chart data
-  const radarLabels = STR_METRICS.filter(m=>latest[m.key]!=null).map(m=>m.label);
-  const radarVals   = STR_METRICS.filter(m=>latest[m.key]!=null).map(m=>scores[m.key]);
-  const radarPrev   = prev ? STR_METRICS.filter(m=>latest[m.key]!=null).map(m=>{
-    const ps = scoreEntry(prev); return ps[m.key]||0;
-  }) : null;
+  // Spider chart — group-relative
+  const spiderLabels = STR_METRICS.filter(m=>latest[m.key]!=null).map(m=>m.label);
+  const spiderVals   = STR_METRICS.filter(m=>latest[m.key]!=null).map(m=>relScores[m.key]??0);
 
   const sessionLabel = latest.date
     ? String(latest.date).replace(/\.csv$/i,'').replace(/\.xlsx$/i,'').replace(/Teambuildr_/gi,'').replace(/_/g,' ')
@@ -2173,11 +2202,11 @@ function renderStrAthlete(){
       <div class="str-panel-header">
         <div>
           <div class="str-panel-title">${name}</div>
-          <div class="str-panel-sub">${sessionLabel} · ${scores._count} metrics</div>
+          <div class="str-panel-sub">${sessionLabel} · ${absScores._count} metrics</div>
         </div>
         <div class="str-score-badge">
-          <div class="str-score-val">${scores._composite}</div>
-          <div class="str-score-lbl">Composite</div>
+          <div class="str-score-val">${absScores._composite}</div>
+          <div class="str-score-lbl">RAS Score</div>
           <div class="str-score-grade" style="color:${color}">${grade}</div>
         </div>
       </div>
@@ -2187,57 +2216,52 @@ function renderStrAthlete(){
           <div class="str-metrics-grid">${metricCards}</div>
         </div>
         <div class="str-radar-wrap">
-          <div style="font-size:10px;letter-spacing:2px;color:var(--gold);font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;margin-bottom:8px;text-align:center">Radar Profile</div>
+          <div style="font-size:10px;letter-spacing:2px;color:var(--gold);font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;margin-bottom:4px;text-align:center">Group Comparison</div>
+          <div style="font-size:9px;color:var(--muted);text-align:center;margin-bottom:8px;font-family:'Barlow Condensed',sans-serif;letter-spacing:1px">EDGE = best in group · CENTER = lowest</div>
           <canvas id="strRadarChart" class="str-radar-canvas" width="280" height="280"></canvas>
-          ${radarPrev ? '<div style="font-size:9px;color:var(--muted);text-align:center;margin-top:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:1px">GOLD = Latest · DASHED = Previous</div>' : ''}
         </div>
       </div>
     </div>`;
 
-  // Draw radar chart
   requestAnimationFrame(()=>{
     destroyChart('strRadarChart');
     const ctx2 = document.getElementById('strRadarChart').getContext('2d');
-    const datasets = [{
-      label: dateStr,
-      data: radarVals,
-      backgroundColor: 'rgba(181,154,87,0.2)',
-      borderColor: '#b59a57',
-      borderWidth: 2,
-      pointBackgroundColor: '#e8c84a',
-      pointRadius: 4,
-    }];
-    if(radarPrev){
-      const prevDate = prev.date ? new Date(prev.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}) : 'Prev';
-      datasets.push({
-        label: prevDate,
-        data: radarPrev,
-        backgroundColor: 'rgba(255,255,255,0.04)',
-        borderColor: 'rgba(255,255,255,0.35)',
-        borderWidth: 1.5,
-        borderDash: [4,4],
-        pointBackgroundColor: 'rgba(255,255,255,0.5)',
-        pointRadius: 3,
-      });
-    }
     chartInstances['strRadarChart'] = new Chart(ctx2, {
       type:'radar',
-      data:{ labels:radarLabels, datasets },
+      data:{ labels:spiderLabels, datasets:[{
+        label: sessionLabel,
+        data: spiderVals,
+        backgroundColor: 'rgba(181,154,87,0.2)',
+        borderColor: '#b59a57',
+        borderWidth: 2,
+        pointBackgroundColor: '#e8c84a',
+        pointRadius: 4,
+        pointHoverRadius: 6,
+      }]},
       options:{
         responsive:false,
         scales:{
           r:{
-            min:0,max:100,
-            ticks:{ display:false, stepSize:25 },
+            min:0, max:100,
+            ticks:{ display:false },
             grid:{ color:'rgba(115,0,10,0.5)' },
             angleLines:{ color:'rgba(181,154,87,0.2)' },
             pointLabels:{ color:'#d4b96a', font:{ family:'Barlow Condensed', size:10, weight:'700' } }
           }
         },
         plugins:{
-          legend:{ display:!!radarPrev, labels:{ color:'#9a7060', font:{family:'DM Mono',size:9}, boxWidth:10, padding:8 } },
-          tooltip:{ backgroundColor:'#1c0005', borderColor:'#4a0010', borderWidth:1, titleColor:'#fff', bodyColor:'#9a7060', titleFont:{family:'DM Mono'}, bodyFont:{family:'DM Mono'},
-            callbacks:{ label: ctx3 => ` ${ctx3.dataset.label}: ${ctx3.raw}/100` }
+          legend:{ display:false },
+          tooltip:{
+            backgroundColor:'#1c0005', borderColor:'#4a0010', borderWidth:1,
+            titleColor:'#fff', bodyColor:'#9a7060',
+            titleFont:{family:'DM Mono'}, bodyFont:{family:'DM Mono'},
+            callbacks:{
+              label: ctx3 => {
+                const m = STR_METRICS.find(x=>x.label===ctx3.label);
+                const raw = m ? latest[m.key] : null;
+                return ` ${raw!=null?raw+' '+m.unit+' — ':''}Group rank: ${ctx3.raw}%`;
+              }
+            }
           }
         }
       }
@@ -2248,7 +2272,7 @@ function renderStrAthlete(){
   if(sessions.length>1){
     histWrap.style.display='block';
     const tbl = document.getElementById('strHistoryTable');
-    tbl.innerHTML = `<thead><tr><th>Date</th><th>Score</th>${STR_METRICS.map(m=>`<th>${m.label}</th>`).join('')}</tr></thead>
+    tbl.innerHTML = `<thead><tr><th>Date</th><th>RAS</th>${STR_METRICS.map(m=>`<th>${m.label}</th>`).join('')}</tr></thead>
       <tbody>${[...sessions].reverse().map(sess=>{
         const sc = scoreEntry(sess);
         const {color:gc} = gradeFromScore(sc._composite);
@@ -2262,7 +2286,6 @@ function renderStrAthlete(){
     histWrap.style.display='none';
   }
 }
-
 function showStrUploadStatus(msg, type){
   const el = document.getElementById('strUploadStatus');
   el.style.display='block';
