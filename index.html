@@ -1888,10 +1888,9 @@ async function loadStrFromSupabase(){
     strSessions = {};
     rows.forEach(r=>{
       const name = r.athlete;
-      if(!strSessions[name]) strSessions[name]=[];
-      strSessions[name].push({
+      const entry = {
         date:         r.session_date || new Date(r.uploaded_at).toISOString().split('T')[0],
-        mph:          r.mph          != null ? parseFloat(r.mph)           : null,
+        mph:          r.mph          != null ? parseFloat(r.mph)            : null,
         frontSquat:   r.front_squat  != null ? parseFloat(r.front_squat)   : null,
         barbellCMJ:   r.barbell_cmj  != null ? parseFloat(r.barbell_cmj)   : null,
         vertJump:     r.vert_jump    != null ? parseFloat(r.vert_jump)      : null,
@@ -1899,10 +1898,22 @@ async function loadStrFromSupabase(){
         hfCMJ:        r.hf_cmj       != null ? parseFloat(r.hf_cmj)        : null,
         rdl:          r.rdl          != null ? parseFloat(r.rdl)            : null,
         splitSquat:   r.split_squat  != null ? parseFloat(r.split_squat)    : null,
-      });
+      };
+      if(!strSessions[name]){
+        strSessions[name] = [entry];
+      } else {
+        // Merge into existing — keep per-metric bests
+        const existing = strSessions[name][0];
+        STR_METRICS.forEach(m=>{
+          const v = entry[m.key];
+          if(v != null && (existing[m.key] == null || v > existing[m.key])){
+            existing[m.key] = v;
+          }
+        });
+        // Keep most recent date
+        if(entry.date > existing.date) existing.date = entry.date;
+      }
     });
-    // Sort each athlete's sessions by date
-    Object.keys(strSessions).forEach(n=> strSessions[n].sort((a,b)=>a.date.localeCompare(b.date)));
     const latest = rows.reduce((a,b)=>a.uploaded_at>b.uploaded_at?a:b);
     const ts = new Date(latest.uploaded_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
     const label = document.getElementById('strSyncLabel');
@@ -2041,48 +2052,80 @@ function parseStrRows(rows, filename){
 
   if(!loaded){ showStrUploadStatus('⚠ No valid rows found. Check that columns match expected names.','err'); return; }
 
-  // Replace existing sessions from this filename; keep sessions from other uploads
+  // ── Per-metric best merge ──────────────────────────────────────────
+  // For each athlete, keep the best (highest) value per metric across all uploads.
+  // Only replace a metric if the new upload has a higher value.
+  let improved = 0;
   Object.entries(sessions).forEach(([name, newRows])=>{
-    if(!strSessions[name]) strSessions[name]=[];
-    // Remove any prior entries with same session key (same filename)
-    strSessions[name] = strSessions[name].filter(r=>r.date!==filename);
-    strSessions[name].push(...newRows);
-    strSessions[name].sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+    if(!strSessions[name] || !strSessions[name].length){
+      // No existing data — just set it
+      strSessions[name] = newRows;
+      improved++;
+      return;
+    }
+    const existing = strSessions[name][strSessions[name].length-1];
+    let changed = false;
+    const merged = { ...existing };
+    newRows.forEach(nr=>{
+      STR_METRICS.forEach(m=>{
+        const newVal = nr[m.key];
+        const oldVal = existing[m.key];
+        // Update if new value exists and is higher than current best (or current is missing)
+        if(newVal != null && (oldVal == null || newVal > oldVal)){
+          merged[m.key] = newVal;
+          changed = true;
+        }
+      });
+      // Always update supaDate to today for the Supabase write
+      merged.supaDate = nr.supaDate || new Date().toISOString().split('T')[0];
+    });
+    if(changed){
+      // Replace last session with merged best
+      strSessions[name][strSessions[name].length-1] = merged;
+      improved++;
+    }
   });
 
   const savedAt = new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
   saveStrData(savedAt);
   populateStrSelect();
-  showStrUploadStatus(`✓ Loaded ${loaded} rows · ${Object.keys(sessions).length} athletes · Saving to Supabase…`, 'ok');
+  showStrUploadStatus(`✓ Merged best values for ${improved} athletes · Saving to Supabase…`, 'ok');
 
-  // Build Supabase rows from all new sessions
-  const supaRows = [];
-  Object.entries(sessions).forEach(([name, rows])=>{
-    rows.forEach(r=>{
-      supaRows.push({
-        athlete:       name,
-        session_date:  r.supaDate || new Date().toISOString().split('T')[0],
-        mph:           r.mph,
-        front_squat:   r.frontSquat,
-        barbell_cmj:   r.barbellCMJ,
-        vert_jump:     r.vertJump,
-        approach_jump: r.approachJump,
-        hf_cmj:        r.hfCMJ,
-        rdl:           r.rdl,
-        split_squat:   r.splitSquat,
-        filename
-      });
-    });
+  // Upsert to Supabase — one row per athlete (personal bests record)
+  // Uses DELETE + INSERT pattern to replace cleanly since Supabase REST upsert
+  // requires a unique constraint; we manage it manually here
+  const today = new Date().toISOString().split('T')[0];
+  const supaRows = Object.entries(sessions).map(([name])=>{
+    const best = strSessions[name][strSessions[name].length-1];
+    return {
+      athlete:       name,
+      session_date:  best.supaDate || today,
+      mph:           best.mph,
+      front_squat:   best.frontSquat,
+      barbell_cmj:   best.barbellCMJ,
+      vert_jump:     best.vertJump,
+      approach_jump: best.approachJump,
+      hf_cmj:        best.hfCMJ,
+      rdl:           best.rdl,
+      split_squat:   best.splitSquat,
+      filename
+    };
   });
 
-  supaInsert('strength_sessions', supaRows)
-    .then(()=>{
-      showStrUploadStatus(`✓ ${loaded} rows saved to Supabase · ${Object.keys(sessions).length} athletes — reloading…`, 'ok');
-      window._strLoaded = false;
-      loadStrFromSupabase();
-    })
-    .catch(e => {
-      showStrUploadStatus(`⚠ Supabase error: ${e.message}`, 'err');
+  // Delete existing rows for these athletes then reinsert with updated bests
+  const athleteFilter = supaRows.map(r=>`athlete.eq.${encodeURIComponent(r.athlete)}`).join(',');
+  supaDelete('strength_sessions', `athlete=in.(${supaRows.map(r=>'"'+r.athlete+'"').join(',')})`)
+    .catch(()=>{}) // ignore delete errors — insert will still work
+    .finally(()=>{
+      supaInsert('strength_sessions', supaRows)
+        .then(()=>{
+          showStrUploadStatus(`✓ Personal bests updated for ${supaRows.length} athletes ✓`, 'ok');
+          window._strLoaded = false;
+          loadStrFromSupabase();
+        })
+        .catch(e => {
+          showStrUploadStatus(`⚠ Supabase error: ${e.message}`, 'err');
+        });
     });
 
   // Auto-select first athlete if none chosen
