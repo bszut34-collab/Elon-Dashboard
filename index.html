@@ -2030,11 +2030,12 @@ function parseStrRows(rows, filename){
     const hasData = STR_METRICS.some(m => entry[m.key] != null);
     if(!hasData) return;
 
-    // Each upload is a snapshot — use filename as the session key so re-uploads
-    // of the same file replace rather than duplicate
+    // Use today's date as the session date for Supabase
+    // Keep filename as the in-memory key so re-uploads of same file replace rather than duplicate
     const sessionKey = filename;
+    const sessionDate = new Date().toISOString().split('T')[0];
     if(!sessions[norm]) sessions[norm]=[];
-    sessions[norm].push({ date: sessionKey, ...entry });
+    sessions[norm].push({ date: sessionKey, supaDate: sessionDate, ...entry });
     loaded++;
   });
 
@@ -2060,7 +2061,7 @@ function parseStrRows(rows, filename){
     rows.forEach(r=>{
       supaRows.push({
         athlete:       name,
-        session_date:  r.date,
+        session_date:  r.supaDate || new Date().toISOString().split('T')[0],
         mph:           r.mph,
         front_squat:   r.frontSquat,
         barbell_cmj:   r.barbellCMJ,
@@ -2081,9 +2082,7 @@ function parseStrRows(rows, filename){
       loadStrFromSupabase();
     })
     .catch(e => {
-      console.error('Supabase strength insert failed:', e.message);
-      console.log('Sample row sent:', JSON.stringify(supaRows[0], null, 2));
-      showStrUploadStatus(`⚠ Supabase error: ${e.message} — check console for details`, 'err');
+      showStrUploadStatus(`⚠ Supabase error: ${e.message}`, 'err');
     });
 
   // Auto-select first athlete if none chosen
